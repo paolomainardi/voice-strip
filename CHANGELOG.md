@@ -4,6 +4,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-17
+
 ### Added
 
 - Character gauges under the presets showing how much the selected preset compresses, brightens and keeps warmth, following the Intensity knob.
@@ -41,5 +43,6 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/paolomainardi/voice-strip/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/paolomainardi/voice-strip/releases/tag/v0.1.0
