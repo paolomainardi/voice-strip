@@ -61,7 +61,7 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 Nine stages in a fixed order, tuned together by the preset and the Intensity knob:
 
 1. **Input**: high-pass filter and proximity shelf.
-2. **Noise removal**: the DeepFilterNet3 low-latency model plus a pause expander, in four levels.
+2. **Noise removal**: the [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) low-latency model plus a pause expander, in four levels.
 3. **De-plosive**: tames pops on P and B.
 4. **De-esser**: tames harsh S sounds.
 5. **EQ**: static tone shaping plus dynamic bands that act only on excess.
@@ -166,7 +166,7 @@ On macOS, reaching the `Voice Strip` device adds about 3.5 ms (resampler and tra
 
 ## Noise removal model
 
-The DeepFilterNet3 low-latency model is not part of the repository or the binary. The app finds it in this order:
+Noise removal uses the low-latency variant of [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet), a real-time speech enhancement network by Hendrik Schröter and colleagues ([paper](https://arxiv.org/abs/2305.08227)). The model is not part of the repository or the binary. The app finds it in this order:
 
 1. `VOICE_STRIP_MODEL`: a model file you supply, used as is.
 2. The cached copy in `~/.cache/voice-strip/` (Linux, or `$XDG_CACHE_HOME`) or `~/Library/Caches/voice-strip/` (macOS).
