@@ -1,0 +1,74 @@
+name: release
+
+# Pushing a vX.Y.Z tag builds the Linux binary and drafts a GitHub release
+# with the matching CHANGELOG.md section. Review the draft, then publish it.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: linux x86_64
+    # The binary needs this runner's glibc (2.39) or newer; older Ubuntu
+    # PipeWire headers do not build.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang libclang-dev libpipewire-0.3-dev pkg-config
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-09
+        with:
+          toolchain: stable
+      - run: cargo build --release --locked -p app
+      - name: Package
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          name="voice-strip-${TAG}-linux-x86_64"
+          mkdir -p "dist/$name"
+          cp target/release/voice-strip "dist/$name/"
+          strip "dist/$name/voice-strip"
+          cp README.md CHANGELOG.md THIRD-PARTY.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: linux
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux
+          path: dist
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          # The CHANGELOG.md section for this version, without its heading.
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on && /^\[[^]]+\]: / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "CHANGELOG.md has no section for $version" >&2
+            exit 1
+          fi
+          (cd dist && sha256sum ./*.tar.gz > SHA256SUMS)
+          gh release create "$TAG" dist/*.tar.gz dist/SHA256SUMS \
+            --draft --verify-tag --title "Voice Strip $version" --notes-file notes.md
