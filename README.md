@@ -159,7 +159,7 @@ Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB) on
 ## Using it
 
 - **Microphone and headphones.** Pick them in the app, or start with `--input` and `--headphones` (see `just devices`).
-- **Presets and noise removal.** A preset sets the tone and loudness target; noise removal adds about 20 ms of delay, so it is off in the Broadcast, Podcast and Narration presets and on in Call and Stream.
+- **Presets and noise removal.** A preset sets the tone and loudness target. The three gauges under the presets show how much it compresses, brightens and keeps the warmth of your voice, and follow the Intensity knob; hover a preset to read what it is for. Noise removal adds about 20 ms of delay: it is light in Broadcast and Podcast, medium in Stream, strong in Call and off in Narration.
 - **Headphone monitor.** The headphones get a lighter chain than the virtual microphone, without noise removal, saturation or leveler, to keep the delay low. Bluetooth headphones add 150 ms or more of their own: use wired ones to monitor.
 - **Background.** Closing the window keeps the app running: processing, the virtual microphone, the tray or menu bar item and remote control go on. Show window brings it back; Quit ends it. `voice-strip --background` starts without the window.
 - **Without audio.** `just run --backend sim` shows the UI with a simulated signal.

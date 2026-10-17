@@ -31,16 +31,62 @@ pub fn bypass(state: &UiState) -> String {
     }
 }
 
-pub fn preset(p: PresetId) -> String {
+/// Preset button: what it is for and what it does, from the settings it
+/// produces at the current Intensity.
+pub fn preset(p: PresetId, state: &UiState) -> String {
     let b = builtin(p);
-    let noise = match b.default_denoise {
-        Some(l) => format!("noise removal {}", l.label().to_lowercase()),
-        None => "noise removal off".into(),
+    let c = app_core::character_levels(p, state.intensity);
+    let amount = |v: u8, words: [&'static str; 3]| match v {
+        0 => None,
+        1..=2 => Some(words[0]),
+        3..=4 => Some(words[1]),
+        _ => Some(words[2]),
     };
-    format!(
-        "{}: {}. Loudness target {:.0} LUFS, {noise}.",
-        b.label, b.description, b.target_lufs
-    )
+    let mut does = Vec::new();
+    does.extend(amount(
+        c.warmth,
+        [
+            "thins the low end",
+            "keeps some warmth",
+            "keeps your microphone's warmth",
+        ],
+    ));
+    does.extend(amount(
+        c.compression,
+        ["compresses lightly", "compresses firmly", "compresses hard"],
+    ));
+    does.extend(amount(
+        c.brightness,
+        [
+            "adds a touch of presence",
+            "lifts presence",
+            "lifts presence strongly",
+        ],
+    ));
+    let mut s = format!("{}: {}. ", b.label, b.use_for.to_lowercase());
+    if does.is_empty() {
+        s.push_str("Leaves the tone alone.");
+    } else {
+        let last = does.pop().unwrap_or_default();
+        let head = does.join(", ");
+        let list = if head.is_empty() {
+            last.to_string()
+        } else {
+            format!("{head} and {last}")
+        };
+        let mut chars = list.chars();
+        if let Some(f) = chars.next() {
+            s.extend(f.to_uppercase());
+            s.push_str(chars.as_str());
+        }
+        s.push('.');
+    }
+    match b.default_denoise {
+        Some(l) => s.push_str(&format!(" {} noise removal.", l.label())),
+        None => s.push_str(" No noise removal."),
+    }
+    s.push_str(&format!(" Loudness {:.0} LUFS.", b.target_lufs));
+    s
 }
 
 /// Noise removal button. Without the model, a level also says that it
@@ -195,7 +241,10 @@ mod tests {
             assert!(module(m, &st).len() > 30, "{m:?}");
         }
         for p in PresetId::ALL {
-            assert!(preset(p).contains("LUFS"), "{p:?}");
+            assert!(
+                preset(p, &crate::demo::demo_state()).contains("LUFS"),
+                "{p:?}"
+            );
         }
         assert!(noise(Some(DenoiseLevel::Strong), &crate::demo::demo_state()).contains("40 dB"));
     }

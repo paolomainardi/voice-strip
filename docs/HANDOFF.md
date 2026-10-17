@@ -108,11 +108,13 @@ Five presets, stored as versioned configuration files (not hardcoded). Each defi
 
 | Preset | Character | Key settings | Target |
 |---|---|---|---|
-| Broadcast | Full, close voice; the "radio" sound | HPF (High-Pass Filter) 80 Hz, proximity effect used for warmth, compression around 4:1, presence at 3 to 5 kHz, light saturation | -16 LUFS |
-| Podcast | Natural and consistent | Moderate compression, slow leveler, gentle de-esser | -16 LUFS |
+| Broadcast | Full, close voice; the "radio" sound | HPF (High-Pass Filter) 80 Hz, proximity effect used for warmth, firm compression, clear presence at 3 to 5 kHz, light saturation, light denoise | -16 LUFS |
+| Podcast | Natural and consistent | Moderate compression, mild presence, slow leveler, gentle de-esser, light denoise | -16 LUFS |
 | Call | Maximum intelligibility | HPF around 120 Hz, strong denoise, light compression, intelligibility-focused EQ | -18 LUFS |
 | Stream | Present and energetic, sits on top of music and game audio | More compression and saturation, stronger presence | -14 LUFS |
-| Narration | Intimate and dynamic, minimal intervention | Low compression to preserve dynamics, more active de-reverb | -18 LUFS |
+| Narration | Intimate and dynamic, minimal intervention; audiobook-ready | Low compression to preserve dynamics, nearly flat tone, peaks at -3 dBTP (ACX), more active de-reverb | -18 LUFS |
+
+The presets are compared with published loudness and voice processing references in [presets.md](presets.md).
 
 ## UI
 

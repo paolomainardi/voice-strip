@@ -15,7 +15,10 @@ use crate::view::View;
 use crate::{knob, vu};
 
 pub const WIDTH: f32 = 420.0;
-pub const HEIGHT: f32 = 648.0;
+/// Extra height below the presets for the preset explanation, beyond the
+/// design source.
+const DY: f32 = 24.0;
+pub const HEIGHT: f32 = 648.0 + DY;
 
 /// 0 VU on the meters corresponds to this RMS level in dBFS.
 pub const VU_REFERENCE_DBFS: f32 = -18.0;
@@ -32,8 +35,13 @@ pub fn vu_inputs_db(m: &engine::MeterFrame) -> (f32, f32) {
 /// Peak lamp threshold, input sample peak in dBFS.
 pub const PEAK_LAMP_DBFS: f32 = -0.5;
 
-const FACEPLATE: Rect = Rect::new(10.0, 10.0, 400.0, 628.0);
-const SCREWS: [(f32, f32); 4] = [(17.0, 17.0), (397.0, 17.0), (17.0, 625.0), (397.0, 625.0)];
+const FACEPLATE: Rect = Rect::new(10.0, 10.0, 400.0, 628.0 + DY);
+const SCREWS: [(f32, f32); 4] = [
+    (17.0, 17.0),
+    (397.0, 17.0),
+    (17.0, 625.0 + DY),
+    (397.0, 625.0 + DY),
+];
 
 const TITLE: Rect = Rect::new(30.0, 28.0, 126.2, 30.0);
 const SUBTITLE: Rect = Rect::new(30.0, 58.0, 126.2, 16.0);
@@ -67,35 +75,41 @@ const PRESET_H: f32 = 52.0;
 const PRESET_PITCH: f32 = 73.2;
 const PRESET_LAMP_Y: f32 = 275.1;
 const PRESET_LABEL_Y: f32 = 292.1;
+/// What the selected preset is for, and its character gauges below.
 const PRESET_DESC: Rect = Rect::new(30.0, 326.1, 360.0, 14.0);
+/// The selected preset's character gauges, across the preset buttons' width.
+const GAUGE_ROW: Rect = Rect::new(30.0, 350.0, 360.0, 12.0);
+const GAUGE_H: f32 = 10.0;
+const GAUGE_LED_W: f32 = 8.0;
+const GAUGE_LED_GAP: f32 = 2.0;
 
-const MON_BUTTON: Rect = Rect::new(50.0, 436.5, 44.0, 56.0);
-const MON_PIVOT: Rect = Rect::new(66.0, 458.5, 12.0, 12.0);
+const MON_BUTTON: Rect = Rect::new(50.0, 436.5 + DY, 44.0, 56.0);
+const MON_PIVOT: Rect = Rect::new(66.0, 458.5 + DY, 12.0, 12.0);
 const MON_LEVER_X: f32 = 69.0;
-const MON_LEVER_OFF_Y: f32 = 465.5;
-const MON_LEVER_ON_Y: f32 = 441.5;
-const MON_LABEL: Rect = Rect::new(30.0, 498.5, 84.0, 16.0);
-const MON_LAMP: Rect = Rect::new(66.0, 520.5, 12.0, 12.0);
+const MON_LEVER_OFF_Y: f32 = 465.5 + DY;
+const MON_LEVER_ON_Y: f32 = 441.5 + DY;
+const MON_LABEL: Rect = Rect::new(30.0, 498.5 + DY, 84.0, 16.0);
+const MON_LAMP: Rect = Rect::new(66.0, 520.5 + DY, 12.0, 12.0);
 
-pub const KNOB: Rect = Rect::new(150.0, 414.0, 120.0, 120.0);
-const KNOB_LABEL: Rect = Rect::new(150.0, 538.0, 120.0, 17.0);
+pub const KNOB: Rect = Rect::new(150.0, 414.0 + DY, 120.0, 120.0);
+const KNOB_LABEL: Rect = Rect::new(150.0, 538.0 + DY, 120.0, 17.0);
 
-const AB_BUTTON: Rect = Rect::new(320.0, 436.0, 56.0, 56.0);
-const AB_LABEL: Rect = Rect::new(306.0, 498.0, 84.0, 16.0);
-const AB_HINT: Rect = Rect::new(306.0, 520.0, 84.0, 13.0);
+const AB_BUTTON: Rect = Rect::new(320.0, 436.0 + DY, 56.0, 56.0);
+const AB_LABEL: Rect = Rect::new(306.0, 498.0 + DY, 84.0, 16.0);
+const AB_HINT: Rect = Rect::new(306.0, 520.0 + DY, 84.0, 13.0);
 
-const RULE_Y: f32 = 579.0;
-const FOOTER_TEXT: Rect = Rect::new(30.0, 588.0, 200.0, 32.0);
-const LINK: Rect = Rect::new(320.5, 588.0, 69.5, 32.0);
+const RULE_Y: f32 = 579.0 + DY;
+const FOOTER_TEXT: Rect = Rect::new(30.0, 588.0 + DY, 200.0, 32.0);
+const LINK: Rect = Rect::new(320.5, 588.0 + DY, 69.5, 32.0);
 /// Calibration link, left of ADVANCED; shows the countdown while running.
-const CAL_LINK: Rect = Rect::new(200.0, 588.0, 98.0, 32.0);
+const CAL_LINK: Rect = Rect::new(200.0, 588.0 + DY, 98.0, 32.0);
 
 const KNOB_PIXELS_PER_UNIT: f32 = 2.0;
 
 /// Noise removal row: "NOISE" label plus Off / Light / Medium / Strong.
-const NOISE_Y: f32 = 354.1;
+const NOISE_Y: f32 = 354.1 + DY;
 const NOISE_H: f32 = 36.0;
-const NOISE_LABEL: Rect = Rect::new(30.0, 354.1, 64.0, 36.0);
+const NOISE_LABEL: Rect = Rect::new(30.0, 354.1 + DY, 64.0, 36.0);
 const NOISE_GAP: f32 = 6.0;
 const NOISE_BUTTON_X: f32 = 102.0;
 const NOISE_BUTTON_W: f32 = (288.0 - 3.0 * NOISE_GAP) / 4.0;
@@ -270,6 +284,53 @@ fn noise_button(p: &mut dyn Painter, r: Rect, label: &str, selected: bool) {
         &style,
         Align::Left,
     );
+}
+
+/// The selected preset's character as three small LED strips, in the
+/// style of the gain reduction bar, spread across the preset buttons: the
+/// first starts under BROADCAST, the last ends under NARRATION. They follow
+/// the Intensity knob; the button tooltips say what each preset is for.
+fn character_gauges(p: &mut dyn Painter, state: &UiState) {
+    let levels = app_core::character_levels(state.preset, state.intensity);
+    let label = TextStyle::new(Family::Oswald, 500, 10.0, th::INK_SOFT).spacing(1.5);
+    let gauges = [
+        ("COMPRESSION", levels.compression),
+        ("BRIGHT", levels.brightness),
+        ("WARM", levels.warmth),
+    ];
+    let strip_w = 5.0 * GAUGE_LED_W + 4.0 * GAUGE_LED_GAP + 4.0;
+    let widths = gauges.map(|(name, _)| p.measure_text(name, &label).width + 6.0 + strip_w);
+    let gap = (GAUGE_ROW.w - widths.iter().sum::<f32>()) / 2.0;
+    let mut x = GAUGE_ROW.x;
+    for ((name, lit), w) in gauges.iter().zip(widths) {
+        let lw = w - 6.0 - strip_w;
+        p.text_in_rect(
+            name,
+            Rect::new(x, GAUGE_ROW.y, lw, GAUGE_ROW.h),
+            &label,
+            Align::Left,
+        );
+        let strip = Rect::new(
+            x + lw + 6.0,
+            GAUGE_ROW.y + (GAUGE_ROW.h - GAUGE_H) / 2.0,
+            strip_w,
+            GAUGE_H,
+        );
+        p.fill_rounded_rect(strip, 2.5, th::INK);
+        for i in 0..5u8 {
+            p.fill_rounded_rect(
+                Rect::new(
+                    strip.x + 2.0 + (GAUGE_LED_W + GAUGE_LED_GAP) * i as f32,
+                    strip.y + 2.0,
+                    GAUGE_LED_W,
+                    GAUGE_H - 4.0,
+                ),
+                1.0,
+                if i < *lit { th::LED_LOW } else { th::LED_OFF },
+            );
+        }
+        x += w + gap;
+    }
 }
 
 fn preset_rect(i: usize) -> Rect {
@@ -550,6 +611,7 @@ impl View for StandardView {
             &mono11,
             Align::Center,
         );
+        character_gauges(p, state);
 
         // Noise removal: label (with the model download size while the
         // model is missing), Off plus the three levels.
@@ -780,7 +842,7 @@ impl View for StandardView {
             return Some(match id {
                 Id::On => help::on_switch(state),
                 Id::Mute => help::mute(state),
-                Id::Preset(i) => help::preset(PresetId::ALL[i as usize]),
+                Id::Preset(i) => help::preset(PresetId::ALL[i as usize], state),
                 Id::Noise(i) => help::noise(
                     if i == 0 {
                         None
@@ -834,12 +896,12 @@ mod tests {
         assert_eq!(v.hit(Point::new(360.0, 50.0), &s), Some(Id::On));
         assert_eq!(v.hit(Point::new(40.0, 290.0), &s), Some(Id::Preset(0)));
         assert_eq!(v.hit(Point::new(330.0, 290.0), &s), Some(Id::Preset(4)));
-        assert_eq!(v.hit(Point::new(72.0, 449.0), &s), Some(Id::Monitor));
-        assert_eq!(v.hit(Point::new(110.0, 370.0), &s), Some(Id::Noise(0)));
-        assert_eq!(v.hit(Point::new(380.0, 370.0), &s), Some(Id::Noise(3)));
-        assert_eq!(v.hit(Point::new(210.0, 474.0), &s), Some(Id::Knob));
-        assert_eq!(v.hit(Point::new(348.0, 464.0), &s), Some(Id::Ab));
-        assert_eq!(v.hit(Point::new(370.0, 604.0), &s), Some(Id::Advanced));
+        assert_eq!(v.hit(Point::new(72.0, 473.0), &s), Some(Id::Monitor));
+        assert_eq!(v.hit(Point::new(110.0, 394.0), &s), Some(Id::Noise(0)));
+        assert_eq!(v.hit(Point::new(380.0, 394.0), &s), Some(Id::Noise(3)));
+        assert_eq!(v.hit(Point::new(210.0, 498.0), &s), Some(Id::Knob));
+        assert_eq!(v.hit(Point::new(348.0, 488.0), &s), Some(Id::Ab));
+        assert_eq!(v.hit(Point::new(370.0, 628.0), &s), Some(Id::Advanced));
         assert_eq!(v.hit(Point::new(210.0, 150.0), &s), None);
     }
 
@@ -862,10 +924,10 @@ mod tests {
         let mut v = StandardView::new();
         let s = state();
         let mut out = Vec::new();
-        v.handle(Event::PointerDown(Point::new(210.0, 474.0)), &s, &mut out);
-        v.handle(Event::PointerMove(Point::new(230.0, 474.0)), &s, &mut out);
+        v.handle(Event::PointerDown(Point::new(210.0, 498.0)), &s, &mut out);
+        v.handle(Event::PointerMove(Point::new(230.0, 498.0)), &s, &mut out);
         assert_eq!(out, vec![Action::SetIntensity(s.intensity + 10)]);
-        v.handle(Event::PointerUp(Point::new(230.0, 474.0)), &s, &mut out);
+        v.handle(Event::PointerUp(Point::new(230.0, 498.0)), &s, &mut out);
         assert_eq!(out.len(), 1);
     }
 }

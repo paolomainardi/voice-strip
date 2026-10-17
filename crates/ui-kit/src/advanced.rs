@@ -564,6 +564,8 @@ const NOISE_LABELS: [&str; 4] = ["Off", "Light", "Medium", "Strong"];
 const HINT_ON: &str = "+20 ms";
 const HINT_OFF: &str = "lowest latency";
 const HINT_MODEL: &str = "35 MB model";
+/// Space between the voice profile and the preset's use.
+const USE_FOR_GAP: f32 = 24.0;
 
 /// "<profile> with <microphone>", the voice profile line.
 fn write_profile(text: &mut String, state: &UiState) {
@@ -763,6 +765,9 @@ impl View for AdvancedView {
             write_profile(&mut self.text, state);
             p.measure_text("Voice profile: ", &muted13).width
                 + p.measure_text(&self.text, &sans(13.0, 400, th::TEXT)).width
+                + USE_FOR_GAP
+                + p.measure_text(builtin(state.preset).use_for, &muted13)
+                    .width
         };
         let inputs = LayoutInputs {
             w,
@@ -1331,6 +1336,14 @@ impl View for AdvancedView {
             &s13,
             Align::Left,
         );
+        // What the selected preset is for, after the profile.
+        let used = pw + p.measure_text(&self.text, &s13).width + USE_FOR_GAP;
+        p.text_in_rect(
+            builtin(state.preset).use_for,
+            Rect::new(pr.x + used, pr.y, pr.w - used, pr.h),
+            &muted13,
+            Align::Left,
+        );
 
         // Spectrum curves.
         p.save();
@@ -1840,7 +1853,7 @@ impl View for AdvancedView {
             ),
             Id::Bypass => help::bypass(state),
             Id::Compact => help::compact(),
-            Id::Preset(i) => help::preset(PresetId::ALL[i as usize]),
+            Id::Preset(i) => help::preset(PresetId::ALL[i as usize], state),
             Id::Recalibrate => help::calibrate(),
             Id::Input => help::device_input(state),
             Id::Output => help::device_output(state),
