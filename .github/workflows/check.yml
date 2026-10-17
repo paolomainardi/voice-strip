@@ -19,6 +19,7 @@ jobs:
             model-cache: .cache/voice-strip
           - os: macos-15
             model-cache: ~/Library/Caches/voice-strip
+    name: check (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     env:
       XDG_CACHE_HOME: ${{ github.workspace }}/.cache
