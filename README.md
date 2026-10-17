@@ -72,9 +72,23 @@ Nine stages in a fixed order, tuned together by the preset and the Intensity kno
 
 Two views show it: a vintage faceplate for everyday use, and an advanced view with the spectrum, loudness and every stage. Both render on the GPU (Vulkan on Linux, Metal on macOS).
 
+## Install on Linux from a release
+
+Each [release](https://github.com/paolomainardi/voice-strip/releases) has a Linux x86_64 binary. It needs PipeWire, a Wayland or X11 desktop and a Vulkan driver, and runs on distributions with glibc 2.39 or later (Ubuntu 24.04, Debian 13, Fedora 40, Arch Linux and newer). On older ones, build from source.
+
+```bash
+curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.1.0/voice-strip-v0.1.0-linux-x86_64.tar.gz
+curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.1.0/SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
+tar -xzf voice-strip-v0.1.0-linux-x86_64.tar.gz
+./voice-strip-v0.1.0-linux-x86_64/voice-strip
+```
+
+Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`. macOS has no release binary: its virtual microphone driver must be signed on the machine that runs it, so build it from source as below.
+
 ## Build and run
 
-Voice Strip is distributed as source only: you build it, and on macOS you sign its driver yourself (ad-hoc, which needs no Apple account). Install the build dependencies below, clone the repository, then follow the steps for your system. Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB): the app asks before downloading it (see [Noise removal model](#noise-removal-model)).
+You can also build Voice Strip from source, and on macOS you must: you sign its driver yourself (ad-hoc, which needs no Apple account). Install the build dependencies below, clone the repository, then follow the steps for your system. Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB): the app asks before downloading it (see [Noise removal model](#noise-removal-model)).
 
 ### Build dependencies
 
@@ -198,6 +212,17 @@ Measurements that need extra material, an idle machine or real devices are separ
 | `crates/app-core` | Presets, tuning, calibration, controller, remote control |
 | `crates/ui-kit` | Toolkit-neutral widgets and views |
 | `crates/app` | Desktop app: egui on the GPU (wgpu), tray icon or menu bar item |
+
+## Contribute
+
+Contributions are welcome. Voice Strip is a personal research project, so agree on a change before writing it:
+
+- **Issues first.** Report bugs and propose ideas in [issues](https://github.com/paolomainardi/voice-strip/issues). For a code change, open an issue and agree on the approach before the pull request.
+- **Pull requests** must pass `just check` (run `just hooks` once to check before every commit), use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), and follow the realtime rules and latency budget in [AGENTS.md](AGENTS.md). A behaviour change comes with a measurable test.
+- **AI-assisted contributions** are welcome when a person has read, run and reviewed every change.
+- **Merging.** Pull requests are squash-merged once the checks pass on Linux and macOS.
+
+Unless you state otherwise, any contribution you submit is licensed as below (MIT OR Apache-2.0), without additional terms or conditions.
 
 ## Licence
 
