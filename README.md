@@ -218,7 +218,9 @@ just                # every recipe, grouped
 
 Contributor and agent rules (realtime constraints, latency budget, commit conventions): [AGENTS.md](AGENTS.md). Specification: [docs/HANDOFF.md](docs/HANDOFF.md).
 
-Measurements that need extra material, an idle machine or real devices are separate recipes: `just fetch-testdata` (LibriSpeech, CC BY 4.0), `just test-speech`, `just test-denoise`, `just test-timing`, `just test-pipewire` on Linux, and `just test-macos-driver` and `just test-macos-backend` on macOS (run from Terminal). Reports: [docs/loudness.md](docs/loudness.md), [docs/denoise.md](docs/denoise.md).
+Measurements that need extra material, an idle machine or real devices are separate recipes: `just fetch-testdata` (LibriSpeech, CC BY 4.0), `just test-speech`, `just test-denoise`, `just test-timing`, `just test-pipewire` and `just test-e2e` on Linux, and `just test-macos-driver` and `just test-macos-backend` on macOS (run from Terminal). Reports: [docs/loudness.md](docs/loudness.md), [docs/denoise.md](docs/denoise.md).
+
+`just test-e2e` plays noisy speech through every preset and noise removal level on a private PipeWire server, so it never touches your audio setup. It checks loudness, true peak, delay, dropouts and noise in the pauses, and leaves a report and one WAV per scenario in `target/e2e/` for listening.
 
 | Crate | Role |
 |---|---|

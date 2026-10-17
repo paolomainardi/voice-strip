@@ -128,11 +128,11 @@ curl -s "https://crates.io/api/v1/crates/<crate>" | jq '{max_stable: .crate.max_
 
 - DSP tests live in `crates/dsp/tests/` and in `#[cfg(test)]` modules. They run on synthetic signals and on licensed voice recordings.
 - Engine tests verify realtime safety with `assert_no_alloc`.
-- Tests that need a running PipeWire server are marked `#[ignore]` and run with `cargo test -- --ignored`.
+- PipeWire tests (`crates/vdev-linux/tests/`) are marked `#[ignore]` and run on a private PipeWire server with WirePlumber through `scripts/e2e/run.sh`: `just test-pipewire` (latency) and `just test-e2e` (every preset and noise level on noisy speech, report in `target/e2e/`). Never run them against the desktop's PipeWire: a running Voice Strip owns the same node names.
 
 ## CI/CD
 
-GitHub Actions, `.github/workflows/check.yml`: `just check` on Ubuntu 24.04 and macOS 15, for pushes to `main` and every pull request. Actions are pinned to full commit SHAs; update them with the Dependency Safety rules above.
+GitHub Actions, `.github/workflows/check.yml`: `just check` on Ubuntu 24.04 and macOS 15, for pushes to `main` and every pull request. `.github/workflows/e2e.yml` runs `just test-pipewire` and `just test-e2e` in an Arch Linux container and uploads `target/e2e/`. Actions are pinned to full commit SHAs; update them with the Dependency Safety rules above.
 
 ## Command Safety
 

@@ -4622,9 +4622,12 @@ dependencies = [
 name = "vdev-linux"
 version = "0.1.0"
 dependencies = [
+ "app-core",
  "ctrlc",
  "dsp",
+ "ebur128",
  "engine",
+ "hound",
  "pipewire",
 ]
 
