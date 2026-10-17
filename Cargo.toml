@@ -1,0 +1,38 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/dsp",
+    "crates/engine",
+    "crates/vdev-linux",
+    "crates/vdev-macos-driver",
+    "crates/vdev-macos",
+    "crates/app-core",
+    "crates/ui-kit",
+    "crates/denoise-neural",
+    "crates/app",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+dsp = { path = "crates/dsp" }
+engine = { path = "crates/engine" }
+app-core = { path = "crates/app-core" }
+ui-kit = { path = "crates/ui-kit" }
+vdev-linux = { path = "crates/vdev-linux" }
+vdev-macos = { path = "crates/vdev-macos" }
+vdev-macos-driver = { path = "crates/vdev-macos-driver" }
+rtrb = "0.3"
+denoise-neural = { path = "crates/denoise-neural" }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[profile.release]
+debug = 1
+
+[profile.test]
+opt-level = 2

@@ -1,0 +1,175 @@
+//! macOS menu bar item: the same menu as the Linux tray, built with
+//! `tray-icon` (an NSStatusItem) on the main thread. Menu clicks arrive as
+//! events that [`MenuBar::commands`] turns into [`TrayCmd`]s; the item
+//! mirrors the controller state through [`MenuBar::update`].
+//!
+//! AppKit delivers the clicks only while its event loop runs: eframe's loop
+//! while the window is open, [`pump`] in the background loop otherwise.
+
+use app_core::{DenoiseLevel, PresetId};
+use tray_icon::menu::{
+    CheckMenuItem, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu,
+};
+use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
+
+use crate::tray::{TrayCmd, TrayState};
+
+pub struct MenuBar {
+    _icon: TrayIcon,
+    on: CheckMenuItem,
+    mute: CheckMenuItem,
+    presets: Vec<(PresetId, CheckMenuItem)>,
+    noise: Vec<(Option<DenoiseLevel>, CheckMenuItem)>,
+    show: MenuId,
+    quit: MenuId,
+    state: TrayState,
+}
+
+/// The menu bar glyph: the app's three level bars between two ticks, as a
+/// template image (macOS tints it for light and dark menu bars).
+fn glyph() -> Icon {
+    const S: u32 = 36;
+    let mut rgba = vec![0u8; (S * S * 4) as usize];
+    let mut fill = |x0: u32, y0: u32, x1: u32, y1: u32| {
+        for y in y0..y1 {
+            for x in x0..x1 {
+                rgba[((y * S + x) * 4 + 3) as usize] = 255;
+            }
+        }
+    };
+    fill(2, 17, 8, 19);
+    fill(10, 11, 13, 25);
+    fill(17, 5, 20, 31);
+    fill(24, 11, 27, 25);
+    fill(29, 17, 34, 19);
+    Icon::from_rgba(rgba, S, S).expect("valid glyph")
+}
+
+impl MenuBar {
+    /// Builds the item. Call on the main thread.
+    pub fn new(state: TrayState) -> Result<Self, String> {
+        // The status bar needs the application object, which no window has
+        // created yet at start.
+        let mtm = objc2::MainThreadMarker::new().ok_or("not on the main thread")?;
+        objc2_app_kit::NSApplication::sharedApplication(mtm);
+        let on = CheckMenuItem::new("Processing on", true, state.on, None);
+        let mute = CheckMenuItem::new("Mute", true, state.muted, None);
+        let presets: Vec<_> = PresetId::ALL
+            .iter()
+            .map(|&p| {
+                let label = app_core::presets::builtin(p).label;
+                (p, CheckMenuItem::new(label, true, p == state.preset, None))
+            })
+            .collect();
+        let noise: Vec<_> = std::iter::once(None)
+            .chain(DenoiseLevel::ALL.iter().map(|&l| Some(l)))
+            .map(|l| {
+                let label = l.map_or("Off", |l| l.label());
+                (l, CheckMenuItem::new(label, true, l == state.noise, None))
+            })
+            .collect();
+        let show = MenuItem::new("Show window", true, None);
+        let quit = MenuItem::new("Quit", true, None);
+
+        let preset_menu = Submenu::new("Preset", true);
+        for (_, item) in &presets {
+            preset_menu.append(item).map_err(|e| e.to_string())?;
+        }
+        let noise_menu = Submenu::new("Noise removal", true);
+        for (_, item) in &noise {
+            noise_menu.append(item).map_err(|e| e.to_string())?;
+        }
+        let menu = Menu::new();
+        menu.append_items(&[
+            &on,
+            &mute,
+            &PredefinedMenuItem::separator(),
+            &preset_menu,
+            &noise_menu,
+            &PredefinedMenuItem::separator(),
+            &show,
+            &quit,
+        ])
+        .map_err(|e| e.to_string())?;
+
+        let icon = TrayIconBuilder::new()
+            .with_menu(Box::new(menu))
+            .with_icon_templated(glyph())
+            .with_tooltip("Voice Strip")
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok(Self {
+            _icon: icon,
+            on,
+            mute,
+            presets,
+            noise,
+            show: show.id().clone(),
+            quit: quit.id().clone(),
+            state,
+        })
+    }
+
+    /// Commands picked in the menu since the last call.
+    pub fn commands(&self) -> Vec<TrayCmd> {
+        let mut out = Vec::new();
+        while let Ok(ev) = MenuEvent::receiver().try_recv() {
+            let id = ev.id;
+            if id == *self.on.id() {
+                out.push(TrayCmd::SetOn(!self.state.on));
+            } else if id == *self.mute.id() {
+                out.push(TrayCmd::SetMuted(!self.state.muted));
+            } else if id == self.show {
+                out.push(TrayCmd::Show);
+            } else if id == self.quit {
+                out.push(TrayCmd::Quit);
+            } else if let Some((p, _)) = self.presets.iter().find(|(_, i)| *i.id() == id) {
+                out.push(TrayCmd::SetPreset(*p));
+            } else if let Some((l, _)) = self.noise.iter().find(|(_, i)| *i.id() == id) {
+                out.push(TrayCmd::SetNoise(*l));
+            }
+        }
+        out
+    }
+
+    /// Mirrors `state` into the check marks. AppKit toggles a check item on
+    /// click by itself, so every mark is set, not only the changed ones.
+    pub fn update(&mut self, state: TrayState) {
+        self.state = state;
+        self.on.set_checked(state.on);
+        self.mute.set_checked(state.muted);
+        for (p, item) in &self.presets {
+            item.set_checked(*p == state.preset);
+        }
+        for (l, item) in &self.noise {
+            item.set_checked(*l == state.noise);
+        }
+    }
+}
+
+/// Runs AppKit's event loop for `d` without a window, so menu bar clicks
+/// are handled. Makes sure the application object exists (a `--background`
+/// start has opened no window yet).
+pub fn pump(d: std::time::Duration) {
+    use objc2_app_kit::{NSApplication, NSEventMask};
+    use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
+
+    let Some(mtm) = objc2::MainThreadMarker::new() else {
+        std::thread::sleep(d);
+        return;
+    };
+    let app = NSApplication::sharedApplication(mtm);
+    let until = NSDate::dateWithTimeIntervalSinceNow(d.as_secs_f64());
+    // SAFETY: called on the main thread with the shared application; the
+    // events are handed back to it unchanged.
+    unsafe {
+        while let Some(event) = app.nextEventMatchingMask_untilDate_inMode_dequeue(
+            NSEventMask::Any,
+            Some(&until),
+            NSDefaultRunLoopMode,
+            true,
+        ) {
+            app.sendEvent(&event);
+        }
+    }
+}

@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.paolomainardi.voicestrip",
+  "name": "Voice Strip",
+  "version": "0.1.0",
+  "author": "Paolo Mainardi",
+  "description": "Live meters and controls for Voice Strip, the voice processor with a virtual microphone.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Voice Strip",
+    "description": "Processing, presets, noise removal and intensity, with live VU meters",
+    "category": "System",
+    "aliases": [
+      "voice strip",
+      "voice",
+      "microphone",
+      "mic",
+      "processor",
+      "noise removal"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "command": "voice-strip",
+      "look": "Faceplate",
+      "showMeter": true,
+      "hideWhenClosed": false
+    },
+    "schema": [
+      {
+        "key": "command",
+        "type": "string",
+        "label": "Command",
+        "defaultValue": "voice-strip",
+        "description": "The Voice Strip executable, or its full path."
+      },
+      {
+        "key": "look",
+        "type": "enum",
+        "label": "Panel look",
+        "options": ["Faceplate", "Console", "Omarchy"],
+        "defaultValue": "Faceplate",
+        "description": "Faceplate is the app's standard view, Console its advanced view, Omarchy follows the current theme."
+      },
+      {
+        "key": "showMeter",
+        "type": "boolean",
+        "label": "Show the level meter",
+        "defaultValue": true,
+        "description": "Show the output level next to the icon while processing."
+      },
+      {
+        "key": "hideWhenClosed",
+        "type": "boolean",
+        "label": "Hide when Voice Strip is closed",
+        "defaultValue": false,
+        "description": "Show the icon only while the app is running."
+      }
+    ]
+  }
+}

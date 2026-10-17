@@ -1,0 +1,48 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            # Where `just check` keeps the noise removal model.
+            model-cache: .cache/voice-strip
+          - os: macos-15
+            model-cache: ~/Library/Caches/voice-strip
+    runs-on: ${{ matrix.os }}
+    env:
+      XDG_CACHE_HOME: ${{ github.workspace }}/.cache
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang libclang-dev libpipewire-0.3-dev pkg-config
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-09
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
+        with:
+          tool: just
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ${{ matrix.model-cache }}
+          key: ${{ matrix.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ matrix.os }}-
+      - run: just check

@@ -1,0 +1,17 @@
+[package]
+name = "vdev-macos-driver"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+# cdylib: the AudioServerPlugIn loaded by coreaudiod. rlib: unit tests of the
+# property model, which is plain Rust and runs on any host.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+libc = "0.2.190"
+
+[lints]
+workspace = true
