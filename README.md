@@ -15,6 +15,20 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 > [!WARNING]
 > Voice Strip is a research project for personal use, provided as is, without warranty of any kind. It was built largely with AI coding agents, steered and reviewed by a person. Use it at your own risk.
 
+## Contents
+
+- [Highlights](#highlights)
+- [The chain](#the-chain)
+- [Install on Linux from a release](#install-on-linux-from-a-release)
+- [Install on macOS from source](#install-on-macos-from-source)
+- [Build from source on Linux](#build-from-source-on-linux)
+- [Using it](#using-it): [remote control](#remote-control)
+- [Latency](#latency)
+- [Noise removal model](#noise-removal-model)
+- [Development](#development)
+- [Contribute](#contribute)
+- [Licence](#licence)
+
 ## Highlights
 
 <table>
@@ -84,58 +98,63 @@ tar -xzf voice-strip-v0.1.0-linux-x86_64.tar.gz
 ./voice-strip-v0.1.0-linux-x86_64/voice-strip
 ```
 
-Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`. macOS has no release binary: its virtual microphone driver must be signed on the machine that runs it, so build it from source as below.
+Select **Voice Strip Microphone** as the microphone in your call or recording app. Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`.
 
-## Build and run
+## Install on macOS from source
 
-You can also build Voice Strip from source, and on macOS you must: you sign its driver yourself (ad-hoc, which needs no Apple account). Install the build dependencies below, clone the repository, then follow the steps for your system. Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB): the app asks before downloading it (see [Noise removal model](#noise-removal-model)).
+macOS has no release binary: its virtual microphone is a Core Audio driver that must be signed on the Mac that runs it. You build it yourself and sign it ad-hoc, which needs no Apple account.
 
-### Build dependencies
-
-Every system needs:
-
-- **Rust**, stable 1.88 or later. [rustup](https://rustup.rs) is the simplest way to get a recent one; distribution packages are often older.
-- **[just](https://github.com/casey/just)** 1.27 or later, which runs the recipes. Where the packaged one is older, use `cargo install just`.
-- **curl**, which downloads the noise removal model when you agree to it.
-
-Linux also needs a C toolchain, `pkg-config`, `clang` with libclang (to generate the PipeWire bindings) and the PipeWire development files. To run, it needs a PipeWire session, a Wayland or X11 desktop and a Vulkan driver for your GPU (Mesa's `radeon` or `intel` Vulkan driver, or NVIDIA's).
-
-| System | Packages |
-|---|---|
-| Arch Linux | `pacman -S rust clang pkgconf pipewire just curl` plus `vulkan-radeon`, `vulkan-intel` or `nvidia-utils` |
-| Debian, Ubuntu | `apt install build-essential pkg-config clang libclang-dev libpipewire-0.3-dev curl mesa-vulkan-drivers`, Rust from rustup, then `cargo install just` (Ubuntu 24.04 packages just 1.21) |
-| Fedora | `dnf install gcc clang clang-devel pkgconf pipewire-devel just curl mesa-vulkan-drivers`, Rust from rustup |
-| macOS 13 or later | `xcode-select --install` (C toolchain, `curl`, `codesign`), then `brew install rustup just` and `rustup default stable` |
-
-The Debian, Ubuntu and Fedora lists are checked by building in clean Ubuntu 24.04 and Fedora 42 containers.
-
-### Linux
+**1. Install the tools** (macOS 13 or later):
 
 ```bash
-just start                        # build, then run in the background on the default microphone
+xcode-select --install          # C toolchain, curl and codesign
+brew install rustup just
+rustup default stable
 ```
 
-Pick the microphone and headphones in the app. To start on a given microphone instead, list the devices with `just devices` and pass one: `just start --input <node name>`. `just status`, `just logs` and `just stop` manage the running app.
-
-Select **Voice Strip Microphone** as the microphone in your call or recording app.
-
-### macOS
-
-The virtual microphone is a Core Audio driver that `coreaudiod` loads from `/Library/Audio/Plug-Ins/HAL`. Build and install it once, and again after it changes, then start the app from Terminal:
+**2. Build and start**, from Terminal in a clone of this repository:
 
 ```bash
+git clone https://github.com/paolomainardi/voice-strip.git
+cd voice-strip
 just macos-driver             # build target/VoiceStrip.driver (ad-hoc signed)
 just macos-driver-install     # install it and restart coreaudiod (asks for sudo; audio stops for a moment)
 just start                    # build, then run in the background on the default microphone
 ```
 
-As on Linux, pick devices in the app, or start on one with `just start --input <UID>` (see `just devices`).
-
-Select **Voice Strip** as the microphone in your call or recording app.
+**3. Use it.** Select **Voice Strip** as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip. Run the two driver steps again after updating to a version that changes the driver.
 
 - **Microphone permission.** macOS asks once, for the app that starts Voice Strip: start it from Terminal. A process started over SSH is never granted the microphone and records silence.
+- **Manage it.** `just status`, `just logs` and `just stop`; `just start --input <UID>` starts on a given microphone (see `just devices`).
 - **Uninstall.** `just macos-driver-install --uninstall`.
 - **Signed builds.** `VOICE_STRIP_SIGN_IDENTITY` signs the driver with your identity instead (for example a Developer ID), and `VOICE_STRIP_TEAM` makes the installer accept only that team's signature. See `scripts/macos-driver.sh` for signing over SSH.
+
+## Build from source on Linux
+
+For distributions older than the release binary supports, or to work on Voice Strip. It needs:
+
+- **Rust**, stable 1.88 or later. [rustup](https://rustup.rs) is the simplest way to get a recent one; distribution packages are often older.
+- **[just](https://github.com/casey/just)** 1.27 or later, which runs the recipes. Where the packaged one is older, use `cargo install just`.
+- A C toolchain, `pkg-config`, `clang` with libclang (to generate the PipeWire bindings), the PipeWire development files and `curl`.
+- To run: a PipeWire session, a Wayland or X11 desktop and a Vulkan driver for your GPU.
+
+| Distribution | Packages |
+|---|---|
+| Arch Linux | `pacman -S rust clang pkgconf pipewire just curl` plus `vulkan-radeon`, `vulkan-intel` or `nvidia-utils` |
+| Debian, Ubuntu | `apt install build-essential pkg-config clang libclang-dev libpipewire-0.3-dev curl mesa-vulkan-drivers`, Rust from rustup, then `cargo install just` (Ubuntu 24.04 packages just 1.21) |
+| Fedora | `dnf install gcc clang clang-devel pkgconf pipewire-devel just curl mesa-vulkan-drivers`, Rust from rustup |
+
+The Debian, Ubuntu and Fedora lists are checked by building in clean Ubuntu 24.04 and Fedora 42 containers. Then:
+
+```bash
+git clone https://github.com/paolomainardi/voice-strip.git
+cd voice-strip
+just start                    # build, then run in the background on the default microphone
+```
+
+Select **Voice Strip Microphone** as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip. `just status`, `just logs` and `just stop` manage the running app; `just start --input <node name>` starts on a given microphone (see `just devices`).
+
+Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB) on every system: the app asks before downloading it (see [Noise removal model](#noise-removal-model)).
 
 ## Using it
 
