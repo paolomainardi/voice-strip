@@ -1,9 +1,11 @@
 //! Stage 8: slow AGC toward a loudness target.
 //!
 //! Measures K-weighted loudness of its own input in 100 ms sub-blocks,
-//! gates out pauses (absolute -50 LUFS and 15 LU below the tracked level),
-//! tracks a 1 s exponential average in the power domain (so it follows
-//! integrated loudness, not the mean of dB values), and slews its gain
+//! gates out pauses (absolute -50 LUFS and 10 LU below the tracked level,
+//! the EBU R128 gates, so it agrees with the loudness the target is defined
+//! in: a wider gate counts room noise around speech and overshoots), tracks
+//! a 1 s exponential average in the power domain (so it follows integrated
+//! loudness, not the mean of dB values), and slews its gain
 //! toward `target - tracked` at a bounded rate. A slow integral correction
 //! driven by the chain's final output (fed back through
 //! [`Leveler::observe_output`]) removes the residual error left by later
@@ -17,7 +19,7 @@ use crate::util::db_to_lin;
 const SUB: usize = 4_800;
 const TRACK: f64 = 0.15;
 const ABS_GATE_LUFS: f64 = -50.0;
-const REL_GATE_LU: f64 = 15.0;
+const REL_GATE_LU: f64 = 10.0;
 const MAX_UP_DB: f32 = 24.0;
 /// Integral gain of the output correction per 100 ms sub-block.
 const KI: f64 = 0.04;
