@@ -11,8 +11,9 @@
 //! Per scenario it checks that nothing drops out (no missed buffers, no
 //! gaps, no non-finite samples), that the loudness settles within 1 LU of
 //! the preset's target, that true peaks stay under the limiter ceiling, and that the
-//! measured delay matches the one the app reports. Across noise removal
-//! levels it checks that each level leaves less noise in the pauses.
+//! measured delay matches the one the app reports. Across scenarios it
+//! checks that each noise removal level leaves less noise in the pauses and
+//! that the presets keep their character: compression, low end, presence.
 
 #![cfg(target_os = "linux")]
 
@@ -26,6 +27,8 @@ use std::time::{Duration, Instant};
 use app_core::presets::builtin;
 use app_core::{Controller, DenoiseLevel, PresetId};
 use common::*;
+use dsp::Module;
+use dsp::util::{Biquad, Coefs};
 use engine::RunningBackend;
 use vdev_linux::{PipeWireBackend, VIRTUAL_MIC_NAME};
 
@@ -45,6 +48,8 @@ const PAUSE_GUARD_S: f64 = 0.3;
 const LUFS_TOLERANCE: f64 = 1.0;
 /// Limiter ceiling (-1 dBTP) plus the measurement's margin.
 const MAX_TRUE_PEAK_DBTP: f64 = -0.5;
+/// Smallest difference that counts as a preset's character, dB.
+const CHARACTER_MARGIN_DB: f64 = 0.5;
 /// A run of exact zeros this long inside speech is a dropout.
 const MAX_ZERO_RUN: usize = 240;
 
@@ -77,6 +82,13 @@ struct Result {
     zero_run: usize,
     finite: bool,
     notice: Option<String>,
+    /// Level below 150 Hz and around 4 kHz relative to the whole signal,
+    /// dB: the low end and the presence of the voice.
+    low_db: f64,
+    presence_db: f64,
+    /// Compressor gain reduction exceeded 10% of the time during the
+    /// settled utterance, dB: what the compressor does on loud syllables.
+    comp_gr_db: f64,
 }
 
 fn out_dir() -> PathBuf {
@@ -232,6 +244,14 @@ fn lag(x: &[f32], y: &[f32], max_lag: usize) -> (usize, f64) {
     (best.0, best.1 / (ex * best.2).sqrt().max(1e-12))
 }
 
+/// Level of `x` through a filter, relative to its whole level, dB.
+fn band_db(x: &[f32], c: Coefs) -> f64 {
+    let mut f = Biquad::new(c);
+    let y: Vec<f32> = x.iter().map(|&s| f.tick(s)).collect();
+    let all = [(0, x.len())];
+    rms_db(&y, &all) - rms_db(x, &all)
+}
+
 fn longest_zero_run(x: &[f32], ranges: &[(usize, usize)]) -> usize {
     let mut longest = 0;
     for &(a, b) in ranges {
@@ -358,11 +378,18 @@ fn every_preset_and_noise_level_end_to_end() {
         clear(&virtual_mic);
         start_play(&player);
         let t = Instant::now();
+        let settled =
+            Duration::from_secs_f64(input.speech[UTTERANCES.len() - 1].0 as f64 / RATE as f64);
+        let mut comp_gr = Vec::new();
         while is_playing(&player) {
             assert!(t.elapsed() < Duration::from_secs(seconds as u64 + 10));
             c.tick();
+            if t.elapsed() > settled {
+                comp_gr.push(c.state().meters.gain_reduction_db[Module::Compressor.index()] as f64);
+            }
             std::thread::sleep(Duration::from_millis(20));
         }
+        comp_gr.sort_by(f64::total_cmp);
         run_for(&mut c, Duration::from_millis(300));
 
         let (x, y, missed_buffers) = align(&reference, &virtual_mic);
@@ -393,6 +420,9 @@ fn every_preset_and_noise_level_end_to_end() {
             zero_run: longest_zero_run(y, &input.speech),
             finite: y.iter().all(|v| v.is_finite()),
             notice: c.state().notice.clone(),
+            low_db: band_db(&y[from..], Coefs::lowpass(150.0, 0.707)),
+            presence_db: band_db(&y[from..], Coefs::bandpass(4000.0, 1.0)),
+            comp_gr_db: comp_gr.get(comp_gr.len() * 9 / 10).copied().unwrap_or(0.0),
         };
         eprintln!("e2e: {result:?}");
         results.push(result);
@@ -457,19 +487,55 @@ fn every_preset_and_noise_level_end_to_end() {
             ));
         }
     }
+    // Each preset shapes the voice as designed (`docs/presets.md`): more
+    // compression from Stream down to Narration, less low end in Call, more
+    // presence in Stream than in Narration.
+    let get = |name: &str| results.iter().find(|r| r.name == name).unwrap();
+    let order = ["stream", "broadcast", "podcast", "narration"];
+    for w in order.windows(2) {
+        let (a, b) = (get(w[0]), get(w[1]));
+        if a.comp_gr_db < b.comp_gr_db + CHARACTER_MARGIN_DB {
+            failures.push(format!(
+                "{} compresses no more than {}: {:.1} vs {:.1} dB",
+                a.name, b.name, a.comp_gr_db, b.comp_gr_db
+            ));
+        }
+    }
+    for r in &results {
+        if r.comp_gr_db < CHARACTER_MARGIN_DB {
+            failures.push(format!(
+                "{}: compressor idle ({:.1} dB)",
+                r.name, r.comp_gr_db
+            ));
+        }
+    }
+    if get("call").low_db > get("broadcast").low_db - 3.0 * CHARACTER_MARGIN_DB {
+        failures.push(format!(
+            "call keeps as much low end as broadcast: {:.1} vs {:.1} dB",
+            get("call").low_db,
+            get("broadcast").low_db
+        ));
+    }
+    if get("stream").presence_db < get("narration").presence_db + CHARACTER_MARGIN_DB {
+        failures.push(format!(
+            "stream has no more presence than narration: {:.1} vs {:.1} dB",
+            get("stream").presence_db,
+            get("narration").presence_db
+        ));
+    }
     assert!(failures.is_empty(), "\n{}", failures.join("\n"));
 }
 
 fn report(results: &[Result], input_snr: f64) -> String {
     let mut s = String::from(
         "# Voice Strip end-to-end report\n\n\
-         | Scenario | LUFS (target) | True peak | Speech to pause | Delay (reported) | Correlation |\n\
-         |---|---|---|---|---|---|\n",
+         | Scenario | LUFS (target) | True peak | Speech to pause | Delay (reported) | Correlation | Low | Presence | Compressor GR |\n\
+         |---|---|---|---|---|---|---|---|---|\n",
     );
     for r in results {
         let _ = writeln!(
             s,
-            "| {} | {:.1} ({:.0}) | {:.1} dBTP | {:.1} dB | {:.1} ms ({:.1} ms) | {:.2} |",
+            "| {} | {:.1} ({:.0}) | {:.1} dBTP | {:.1} dB | {:.1} ms ({:.1} ms) | {:.2} | {:.1} dB | {:.1} dB | {:.1} dB |",
             r.name,
             r.lufs,
             r.target_lufs,
@@ -477,7 +543,10 @@ fn report(results: &[Result], input_snr: f64) -> String {
             r.speech_db - r.pause_db,
             r.latency_ms,
             r.reported_ms,
-            r.correlation
+            r.correlation,
+            r.low_db,
+            r.presence_db,
+            r.comp_gr_db
         );
     }
     let _ = writeln!(
