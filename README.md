@@ -15,6 +15,19 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 > [!WARNING]
 > Voice Strip is a research project for personal use, provided as is, without warranty of any kind. It was built largely with AI coding agents, steered and reviewed by a person. Use it at your own risk.
 
+## Contents
+
+- [Highlights](#highlights)
+- [The chain](#the-chain)
+- [Install on Linux from a release](#install-on-linux-from-a-release)
+- [Build and run](#build-and-run): [dependencies](#build-dependencies), [Linux](#linux), [macOS](#macos)
+- [Using it](#using-it): [remote control](#remote-control)
+- [Latency](#latency)
+- [Noise removal model](#noise-removal-model)
+- [Development](#development)
+- [Contribute](#contribute)
+- [Licence](#licence)
+
 ## Highlights
 
 <table>
