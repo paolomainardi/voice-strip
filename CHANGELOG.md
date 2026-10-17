@@ -4,6 +4,28 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Character gauges under the presets showing how much the selected preset compresses, brightens and keeps warmth, following the Intensity knob.
+- Preset tooltips that say what each preset is for and what it does.
+- `just record-voice` and `just test-voice` to hear every preset on your own voice, calibrated and not, on a local listening page.
+- `just test-e2e`: every preset and noise removal level on noisy speech through a private PipeWire server, checking loudness, true peak, delay, dropouts, noise in pauses and each preset's character.
+- `docs/presets.md`, comparing the presets with Apple Podcasts, AES TD1008, EBU R 128, Spotify and ACX.
+
+### Changed
+
+- Broadcast, Podcast and Narration sound clearly different: Broadcast compresses firmly with more presence, air and saturation; Podcast stays natural with moderate compression; Narration is light and nearly flat.
+- Stream compresses harder and brighter than Broadcast.
+- Narration limits peaks at -3 dBTP, as ACX asks for audiobooks.
+- Broadcast and Podcast start with light noise removal.
+- The Intensity knob has a mark every 10, so every round value points at one.
+- The README links DeepFilterNet3 to its repository and paper, and has a table of contents and an install chapter per system.
+
+### Fixed
+
+- The leveler no longer overshoots the loudness target by about 2 LU when the room is noisy.
+- Without the noise removal model, the app starts with noise removal off instead of showing a level it cannot apply.
+
 ## [0.1.0] - 2026-10-17
 
 ### Added

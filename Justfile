@@ -222,6 +222,17 @@ test-timing:
 test-pipewire:
     scripts/e2e/run.sh cargo test -p vdev-linux --test loopback -- --ignored --nocapture --test-threads=1
 
+# Record 60 s of your raw microphone into target/voice/ for test-voice (stays local)
+[group('measure')]
+[linux]
+record-voice *source:
+    scripts/record-voice.sh {{source}}
+
+# Render a voice recording through every preset, calibrated and not, with a listening page (target/voice/)
+[group('measure')]
+test-voice recording="target/voice/raw.wav": fetch-model
+    cargo run --quiet --release -p app-core --example render_voice -- {{recording}}
+
 # Every preset and noise level on noisy speech through PipeWire (private server; WAVs and report in target/e2e/)
 [group('measure')]
 [linux]

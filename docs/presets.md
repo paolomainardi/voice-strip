@@ -27,24 +27,22 @@ Processing practice:
 
 Measured by `just test-e2e` on LibriSpeech at -26 LUFS with room noise 25 dB below the speech, after the leveler has settled. Compressor GR is the gain reduction exceeded 10% of the time, so roughly what loud syllables get.
 
-| Preset | Target | Reference | High-pass | Presence (3.5 kHz) | Ratio | Compressor GR | Measured loudness |
-|---|---|---|---|---|---|---|---|
-| Broadcast | -16 LUFS | Apple Podcasts -16 | 80 Hz | +2.1 dB | 2.8:1 | 2.9 dB | -15.8 LUFS |
-| Podcast | -16 LUFS | Apple Podcasts -16 | 90 Hz | +1.2 dB | 2.2:1 | 1.9 dB | -15.8 LUFS |
-| Call | -18 LUFS | TD1008 speech -18 | 120 Hz | +2.4 dB | 1.6:1 | 0.9 dB | -17.9 LUFS |
-| Stream | -14 LUFS | Spotify, YouTube -14 | 90 Hz | +2.7 dB | 3.4:1 | 3.7 dB | -14.1 LUFS |
-| Narration | -18 LUFS | TD1008 speech -18, ACX | 70 Hz | +0.9 dB | 1.6:1 | 0.7 dB | -17.2 LUFS |
+| Preset | Target | Reference | High-pass | Presence (3.5 kHz) | Ratio | Compressor GR | Noise removal | Measured loudness |
+|---|---|---|---|---|---|---|---|---|
+| Broadcast | -16 LUFS | Apple Podcasts -16 | 80 Hz | +3.6 dB | 3.4:1 | 4.6 dB | light | -15.9 LUFS |
+| Podcast | -16 LUFS | Apple Podcasts -16 | 90 Hz | +1.8 dB | 2.8:1 | 2.8 dB | light | -15.9 LUFS |
+| Call | -18 LUFS | TD1008 speech -18 | 120 Hz | +2.4 dB | 1.6:1 | 0.9 dB | strong | -17.8 LUFS |
+| Stream | -14 LUFS | Spotify, YouTube -14 | 90 Hz | +4.2 dB | 4.0:1 | 5.4 dB | medium | -14.2 LUFS |
+| Narration | -18 LUFS | TD1008 speech -18, ACX | 70 Hz | +0.3 dB | 1.9:1 | 1.2 dB | off | -17.4 LUFS |
 
-All presets hold true peaks near -2 dBTP, under the -1 dBTP that Apple, TD1008, R 128 and Spotify ask for.
+True peaks stay near -2 dBTP, under the -1 dBTP that Apple, TD1008, R 128 and Spotify ask for. Narration limits at -3 dBTP and peaks near -4 dBTP, inside ACX's -3 dB.
 
-## Gaps
+Broadcast and Stream compress inside the 3 to 6 dB the guides suggest, Podcast at its lower edge for a natural sound, Call and Narration lightly on purpose. Presence, high-pass and de-esser settings sit inside the referenced ranges.
 
-- **Compression is lighter than the references for Broadcast and Podcast.** They reach 2.9 and 1.9 dB of gain reduction on loud syllables, against the 3 to 6 dB guides suggest. Stream reaches 3.7 dB. Call and Narration are light on purpose. Raising Broadcast and Podcast is a listening decision: more compression sounds more "produced" but less natural.
-- **Narration peaks are too high for audiobooks.** ACX asks for peaks at or below -3 dB, while every preset limits at -1 dBTP. If Narration is meant for audiobook delivery, its limiter ceiling should move to -3 dBTP.
-- **Noise in pauses before calibration.** Without calibration the expander assumes a -70 dB noise floor and stays open on ordinary room noise, which then comes out louder relative to the speech (issue #10). ACX's -60 dB noise floor would fail.
+## Open points
+
+- **Noise in pauses before calibration.** Without calibration the expander assumes a -70 dB noise floor and stays open on ordinary room noise (issue #10). Broadcast and Podcast now remove it with light noise removal by default; Narration, without noise removal, still lets it through.
 - **Broadcast is named after radio but targets podcasts.** Its -16 LUFS suits podcast and streaming platforms. Broadcast delivery under R 128 is -23 LUFS, which the preset does not aim at.
-
-Presence, high-pass and de-esser settings sit inside the referenced ranges. Narration's small presence boost matches its "minimal intervention" character.
 
 ## What the end-to-end test checks
 

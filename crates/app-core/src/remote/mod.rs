@@ -381,7 +381,9 @@ mod tests {
 
     fn state() -> UiState {
         let (handle, _processor) = engine::new_engine();
-        Controller::new(handle).state().clone()
+        let mut c = Controller::new(handle);
+        c.set_neural_denoise(None);
+        c.state().clone()
     }
 
     #[test]
@@ -415,6 +417,7 @@ mod tests {
     fn noise_needs_the_model() {
         let (handle, _processor) = engine::new_engine();
         let mut c = Controller::new(handle);
+        c.set_neural_denoise(None);
         c.state_mut().model = ModelState::Missing;
         let err = apply(&mut c, Command::SetNoise(Some(DenoiseLevel::Light))).unwrap_err();
         assert!(err.contains("ctl model download"), "{err}");

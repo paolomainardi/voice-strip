@@ -25,19 +25,26 @@ pub fn scroll_value(value: u8, notches: f32) -> u8 {
     (value as f32 - notches.round()).clamp(0.0, 100.0) as u8
 }
 
-/// Static part: tick marks, body.
+/// Static part: tick marks, body. A decade scale: a mark every 10 units,
+/// long at 0, 50 and 100, so the pointer always lands on or between marks
+/// that mean a round value.
 pub fn paint_body(p: &mut dyn Painter) {
-    let tick = Stroke::new(th::INK, 1.5).cap(LineCap::Round);
-    for i in 0..7 {
-        let deg = -135.0 + 45.0 * i as f32;
-        let a = deg.to_radians();
+    let major = Stroke::new(th::INK, 1.5).cap(LineCap::Round);
+    let minor = Stroke::new(th::INK, 1.0).cap(LineCap::Round);
+    for v in (0..=100u8).step_by(10) {
+        let a = angle_for(v).to_radians();
         let (sx, cy) = (a.sin(), a.cos());
+        let (inner, stroke) = if v % 50 == 0 {
+            (46.0, major)
+        } else {
+            (50.0, minor)
+        };
         p.line(
             CX + 54.0 * sx,
             CY - 54.0 * cy,
-            CX + 46.0 * sx,
-            CY - 46.0 * cy,
-            tick,
+            CX + inner * sx,
+            CY - inner * cy,
+            stroke,
         );
     }
     p.fill_circle(CX, CY, 40.0, th::KNOB_OUTER);

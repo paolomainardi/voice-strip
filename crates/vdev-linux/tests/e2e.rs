@@ -302,6 +302,11 @@ fn every_preset_and_noise_level_end_to_end() {
             noise: None,
         },
         Scenario {
+            name: "broadcast-noise-off",
+            preset: PresetId::Broadcast,
+            noise: Some(None),
+        },
+        Scenario {
             name: "broadcast-noise-light",
             preset: PresetId::Broadcast,
             noise: Some(Some(DenoiseLevel::Light)),
@@ -471,7 +476,7 @@ fn every_preset_and_noise_level_end_to_end() {
         r.speech_db - r.pause_db
     };
     let levels = [
-        "broadcast",
+        "broadcast-noise-off",
         "broadcast-noise-light",
         "broadcast-noise-medium",
         "broadcast-noise-strong",

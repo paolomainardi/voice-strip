@@ -60,6 +60,8 @@ pub struct Preset {
     pub label: &'static str,
     /// One-line description of the character.
     pub description: &'static str,
+    /// What the preset is for, as a sentence shown under the buttons.
+    pub use_for: &'static str,
     pub target_lufs: f32,
     /// Neural noise removal when the preset is selected.
     pub default_denoise: Option<DenoiseLevel>,
@@ -89,15 +91,25 @@ pub fn builtin(id: PresetId) -> Preset {
             -18.0,
         ),
     };
+    let use_for = match id {
+        PresetId::Broadcast => "For radio-style shows and voice-overs",
+        PresetId::Podcast => "For podcasts and interviews",
+        PresetId::Call => "For meetings and video calls",
+        PresetId::Stream => "For live streams, over game audio",
+        PresetId::Narration => "For audiobooks and long reads",
+    };
     let default_denoise = match id {
         PresetId::Call => Some(DenoiseLevel::Strong),
         PresetId::Stream => Some(DenoiseLevel::Medium),
-        PresetId::Broadcast | PresetId::Podcast | PresetId::Narration => None,
+        // Usually recorded at home: steady fan and motor noise goes.
+        PresetId::Broadcast | PresetId::Podcast => Some(DenoiseLevel::Light),
+        PresetId::Narration => None,
     };
     Preset {
         id,
         label,
         description,
+        use_for,
         target_lufs,
         default_denoise,
     }

@@ -16,6 +16,7 @@ fn neural_toggle_changes_mic_latency() {
         c.state().mic_latency_ms
     };
     c.set_preset(PresetId::Broadcast);
+    c.set_neural_denoise(None);
     let off = step(&mut c);
     c.set_neural_denoise(Some(DenoiseLevel::Medium));
     // The model loads in the background; the chain swaps when it is ready.
@@ -66,6 +67,8 @@ fn monitor_denoise_changes_monitor_latency() {
         with_denoise: false,
         level: 1.0,
     };
+    // The main path's noise removal is not under test.
+    c.set_neural_denoise(None);
     c.set_monitor(cfg);
     let plain = step(&mut c);
     cfg.with_denoise = true;

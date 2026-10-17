@@ -159,7 +159,11 @@ impl Controller {
                 ab_original: false,
                 preset: PresetId::Broadcast,
                 intensity: 60,
-                neural_denoise: builtin(PresetId::Broadcast).default_denoise,
+                // Without the model the preset starts with noise removal
+                // off; choosing a level asks for the download.
+                neural_denoise: builtin(PresetId::Broadcast)
+                    .default_denoise
+                    .filter(|_| denoise_neural::model::present()),
                 monitor: MonitorConfig::default(),
                 module_enabled: [true; 9],
                 meters: MeterFrame::default(),
