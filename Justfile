@@ -216,8 +216,15 @@ test-timing:
     cargo test -p dsp --release --test stages cpu_budget -- --ignored --nocapture
     cargo test -p denoise-neural --release --test dfn -- --ignored --nocapture --test-threads=1 inference_time realtime_no_misses
 
-# PipeWire loopback: measured vs reported latency, device switching (needs a running PipeWire)
+# PipeWire loopback: measured vs reported latency, device switching (private PipeWire server)
 [group('measure')]
 [linux]
 test-pipewire:
-    cargo test -p vdev-linux --test loopback -- --ignored --nocapture --test-threads=1
+    scripts/e2e/run.sh cargo test -p vdev-linux --test loopback -- --ignored --nocapture --test-threads=1
+
+# Every preset and noise level on noisy speech through PipeWire (private server; WAVs and report in target/e2e/)
+[group('measure')]
+[linux]
+test-e2e: fetch-model
+    [ -f testdata/speech/1272-128104-0003.wav ] || scripts/fetch-testdata.sh
+    scripts/e2e/run.sh cargo test -p vdev-linux --test e2e -- --ignored --nocapture

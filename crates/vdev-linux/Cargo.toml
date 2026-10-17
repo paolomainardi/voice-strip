@@ -15,3 +15,6 @@ workspace = true
 
 [dev-dependencies]
 ctrlc = "3.5.2"
+app-core.workspace = true
+ebur128 = "0.1"
+hound = "3"
