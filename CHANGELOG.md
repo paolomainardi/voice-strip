@@ -4,6 +4,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-18
+
 ### Added
 
 - A weekly CI check that fails when tract or upstream DeepFilterNet has a release to review.
@@ -55,6 +57,7 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/paolomainardi/voice-strip/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/paolomainardi/voice-strip/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/paolomainardi/voice-strip/releases/tag/v0.1.0
