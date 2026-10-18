@@ -22,7 +22,7 @@ Measured on a Ryzen 9 9950X:
 
 ### Maintaining the fork
 
-Changes go on the branch `voice-strip` as small commits. Voice Strip pins a full commit SHA, never the branch. To update `tract`, bump the version in the fork, then run the validation: `just test-denoise`, `just test-timing`, and a sample-by-sample comparison of the enhanced output against the previous version. Then bump the SHA in Voice Strip through a pull request. Never rewrite pushed fork history. If upstream resumes, rebase the branch onto upstream and drop what upstream merged.
+Changes go on the branch `voice-strip` as small commits. Voice Strip pins a full commit SHA, never the branch. To update `tract`, bump the version in the fork, then run the validation: `just test-denoise`, `just test-timing`, and a sample-by-sample comparison of the enhanced output against the previous version. Then bump the SHA in Voice Strip through a pull request. Never rewrite pushed fork history: Voice Strip's old pins must keep resolving. If upstream resumes, start a new branch from upstream's latest commit, reapply only what upstream did not merge, and pin that.
 
 The model is not embedded in the binary either (`default-model-ll` is off). `denoise_neural::model::locate` finds it, in order:
 
