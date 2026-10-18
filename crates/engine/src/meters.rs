@@ -25,6 +25,16 @@ pub struct MeterFrame {
     /// Frames the neural denoiser of the main chain failed to deliver in
     /// time since that chain started (cumulative).
     pub denoise_missed_frames: u64,
+    /// Speech probability from the voice detector, `None` without one.
+    pub speech_probability: Option<f32>,
+    /// Room noise the voice detector taught the expander, dBFS RMS, `None`
+    /// while unknown.
+    pub room_db: Option<f32>,
+    /// Average voice detector run time per 32 ms chunk, ms.
+    pub vad_inference_ms: Option<f32>,
+    /// Average noise removal run time per 10 ms frame, ms, `None` when
+    /// noise removal is not loaded.
+    pub denoise_inference_ms: Option<f32>,
 }
 
 /// Average of |x| over `buf`, scaled by pi / (2 sqrt 2) so that a sine

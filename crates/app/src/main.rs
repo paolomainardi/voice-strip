@@ -444,7 +444,9 @@ impl VoiceStrip {
             match menu {
                 Menu::Input => {
                     self.input_index = choice;
-                    st.input_device = dev.map_or_else(|| default.into(), |d| d.label);
+                    let id = dev.as_ref().map(|d| d.id.clone());
+                    let label = dev.map_or_else(|| default.into(), |d| d.label);
+                    self.controller.select_input(id.as_deref(), label);
                 }
                 Menu::Output => {
                     self.output_index = choice;
@@ -838,14 +840,17 @@ fn main() -> eframe::Result<()> {
         };
         let st = controller.state_mut();
         st.virtual_device = r.virtual_device_name().into();
-        st.voice_profile = "Default".into();
-        st.input_device = args
-            .input
-            .as_deref()
-            .map_or_else(|| "Default microphone".into(), |id| label_of(&inputs, id));
         if let Some(id) = &args.headphones {
             st.output_device = label_of(&outputs, id);
         }
+        if let Some(dir) = app_core::profiles::default_dir() {
+            controller.set_profiles_dir(dir);
+        }
+        let label = args
+            .input
+            .as_deref()
+            .map_or_else(|| "Default microphone".into(), |id| label_of(&inputs, id));
+        controller.select_input(args.input.as_deref(), label);
         if let Some(p) = args.preset {
             controller.set_preset(p);
         }

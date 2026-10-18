@@ -4,6 +4,26 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Voice detection with the Silero VAD model, built into the app and always on.
+- The pause expander learns the room noise while you are silent, so pauses get quieter without calibration.
+- A VOICE lamp in the input meter that lights while you speak.
+- The advanced view shows the AI models at work: speech probability, room noise and run time.
+- Calibrations are saved per microphone and load back when that microphone is selected.
+- An amber lamp on CALIBRATE, and a "not calibrated" voice profile, until the microphone is calibrated.
+- `voice-strip ctl status` reports the voice detector, speech probability, room noise and calibration.
+- A "First run: calibrate" section and an "AI models" chapter in the README.
+
+### Changed
+
+- The leveler measures loudness only while you speak.
+- The headphone switch in the standard view is labelled MONITOR.
+
+### Fixed
+
+- Without noise removal, pauses were left noisier relative to the speech than at the input.
+
 ## [0.2.1] - 2026-10-18
 
 ### Added

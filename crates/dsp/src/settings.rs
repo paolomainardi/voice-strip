@@ -65,6 +65,10 @@ pub struct ModuleSettings {
     /// keep a natural room tone instead of digital silence.
     pub denoise_atten_limit_db: f32,
     pub denoise_expander_threshold_db: f32,
+    /// Expander threshold above the room noise the voice detector measures,
+    /// dB. When set and the room is known, it replaces
+    /// `denoise_expander_threshold_db`. `None` keeps the fixed threshold.
+    pub denoise_expander_margin_db: Option<f32>,
 
     pub deplosive_threshold_db: f32,
 
@@ -102,6 +106,7 @@ impl Default for ModuleSettings {
             denoise_mix: 0.0,
             denoise_atten_limit_db: 25.0,
             denoise_expander_threshold_db: -120.0,
+            denoise_expander_margin_db: None,
             deplosive_threshold_db: 0.0,
             deesser_freq_hz: 6500.0,
             deesser_threshold_db: 0.0,

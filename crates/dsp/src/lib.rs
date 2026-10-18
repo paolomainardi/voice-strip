@@ -6,10 +6,12 @@ pub mod loudness;
 pub mod settings;
 pub mod stages;
 pub mod util;
+pub mod voice;
 
 pub use chain::{Chain, ChainMeters, PathKind};
 pub use settings::{ChainSettings, Module, ModuleSettings};
 pub use stages::denoise::FrameDenoiser;
+pub use voice::VoiceDetector;
 
 pub const SAMPLE_RATE: u32 = 48_000;
 /// Main-path block: 10 ms.

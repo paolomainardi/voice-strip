@@ -255,6 +255,7 @@ dependencies = [
  "ebur128",
  "engine",
  "hound",
+ "vad",
 ]
 
 [[package]]
@@ -4545,6 +4546,18 @@ dependencies = [
  "js-sys",
  "serde_core",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "vad"
+version = "0.2.1"
+dependencies = [
+ "assert_no_alloc",
+ "dsp",
+ "hound",
+ "rtrb",
+ "sha2",
+ "tract-onnx",
 ]
 
 [[package]]

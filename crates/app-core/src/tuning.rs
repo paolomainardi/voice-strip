@@ -187,6 +187,7 @@ pub fn settings_for(
         denoise_mix: if denoise.is_some() { 1.0 } else { 0.0 },
         denoise_atten_limit_db: denoise.map_or(0.0, DenoiseLevel::attenuation_db),
         denoise_expander_threshold_db: profile.noise_floor_db + c.expander_margin_db * k,
+        denoise_expander_margin_db: Some(c.expander_margin_db * k),
         deplosive_threshold_db: CALIBRATED_LUFS - 6.0,
         deesser_freq_hz: profile.sibilance_hz,
         deesser_threshold_db: CALIBRATED_LUFS + 3.0 + c.deesser_offset_db * k,

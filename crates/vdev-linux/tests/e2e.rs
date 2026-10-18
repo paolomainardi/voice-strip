@@ -12,8 +12,11 @@
 //! gaps, no non-finite samples), that the loudness settles within 1 LU of
 //! the preset's target, that true peaks stay under the limiter ceiling, and that the
 //! measured delay matches the one the app reports. Across scenarios it
-//! checks that each noise removal level leaves less noise in the pauses and
-//! that the presets keep their character: compression, low end, presence.
+//! checks that each noise removal level leaves less noise in the pauses,
+//! that even without noise removal the pauses end up no closer to the
+//! speech than at the input (the voice detector teaches the expander the
+//! room), and that the presets keep their character: compression, low
+//! end, presence.
 
 #![cfg(target_os = "linux")]
 
@@ -25,7 +28,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use app_core::presets::builtin;
-use app_core::{Controller, DenoiseLevel, PresetId};
+use app_core::{Controller, DenoiseLevel, DetectorState, PresetId};
 use common::*;
 use dsp::Module;
 use dsp::util::{Biquad, Coefs};
@@ -374,6 +377,11 @@ fn every_preset_and_noise_level_end_to_end() {
     let (io_main, _) = running.io_latency_samples();
     c.set_io_latency_ms(ms(io_main));
     run_for(&mut c, Duration::from_millis(500));
+    assert_eq!(
+        c.state().voice_detector,
+        DetectorState::Running,
+        "the voice detector did not start"
+    );
 
     let guard = (PAUSE_GUARD_S * RATE as f64) as usize;
     let mut results = Vec::new();
@@ -491,6 +499,17 @@ fn every_preset_and_noise_level_end_to_end() {
                 snr(w[0])
             ));
         }
+    }
+    // Without noise removal the voice detector still teaches the expander
+    // the room, so pauses end up quieter relative to the speech than they
+    // were at the input (issue #10).
+    let input_snr = input_speech - input_pause;
+    if snr("broadcast-noise-off") < input_snr {
+        failures.push(format!(
+            "broadcast-noise-off brings the pauses closer to the speech: {:.1} dB, input {:.1} dB",
+            snr("broadcast-noise-off"),
+            input_snr
+        ));
     }
     // Each preset shapes the voice as designed (`docs/presets.md`): more
     // compression from Stream down to Narration, less low end in Call, more

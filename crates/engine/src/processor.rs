@@ -47,6 +47,7 @@ pub struct EngineHandle {
     settings_tx: rtrb::Producer<ChainSettings>,
     chain_tx: rtrb::Producer<Box<Chain>>,
     retired_rx: rtrb::Consumer<Box<Chain>>,
+    vad_tx: rtrb::Producer<Box<dyn dsp::VoiceDetector>>,
     monitor_tx: rtrb::Producer<MonitorConfig>,
     meters_rx: rtrb::Consumer<MeterFrame>,
     /// Output samples for the spectrum analyzer (main path, post-chain).
@@ -88,6 +89,16 @@ impl EngineHandle {
         self.chain_tx
             .push(chain)
             .map_err(|rtrb::PushError::Full(c)| c)
+    }
+
+    /// Hands the voice detector to the audio thread, which feeds it the
+    /// input and steers the main chain with it. Set once; returns the
+    /// detector if one is already queued.
+    pub fn set_voice_detector(
+        &mut self,
+        vad: Box<dyn dsp::VoiceDetector>,
+    ) -> Result<(), Box<dyn dsp::VoiceDetector>> {
+        self.vad_tx.push(vad).map_err(|rtrb::PushError::Full(v)| v)
     }
 
     /// Drops chains the audio thread has swapped out.
@@ -156,6 +167,8 @@ pub struct AudioProcessor {
     spare: Option<Box<Chain>>,
     chain_rx: rtrb::Consumer<Box<Chain>>,
     retired_tx: rtrb::Producer<Box<Chain>>,
+    vad_rx: rtrb::Consumer<Box<dyn dsp::VoiceDetector>>,
+    vad: Option<Box<dyn dsp::VoiceDetector>>,
     settings: ChainSettings,
     monitor: Box<Chain>,
     /// Main-path meters gathered until a meter frame's worth of samples.
@@ -191,6 +204,7 @@ pub fn new_engine_with(
     ));
     let (chain_tx, chain_rx) = rtrb::RingBuffer::new(2);
     let (retired_tx, retired_rx) = rtrb::RingBuffer::new(4);
+    let (vad_tx, vad_rx) = rtrb::RingBuffer::new(1);
     let monitor = Box::new(Chain::new(PathKind::Monitor, dsp::BLOCK_MONITOR));
     let shared = Arc::new(Shared {
         running: AtomicBool::new(false),
@@ -204,6 +218,7 @@ pub fn new_engine_with(
             settings_tx,
             chain_tx,
             retired_rx,
+            vad_tx,
             monitor_tx,
             meters_rx,
             scope_out_rx,
@@ -215,6 +230,8 @@ pub fn new_engine_with(
             spare: None,
             chain_rx,
             retired_tx,
+            vad_rx,
+            vad: None,
             settings: ChainSettings::default(),
             monitor,
             acc: MeterAcc::default(),
@@ -284,7 +301,10 @@ impl AudioProcessor {
         {
             chain.set_settings(&self.settings);
             match chain.path() {
-                PathKind::Main => std::mem::swap(&mut self.main, &mut chain),
+                PathKind::Main => {
+                    chain.seed_room(self.main.room_db());
+                    std::mem::swap(&mut self.main, &mut chain);
+                }
                 PathKind::Monitor => std::mem::swap(&mut self.monitor, &mut chain),
             }
             // The queue holds 4 and the UI drains it every frame; if it is
@@ -297,6 +317,11 @@ impl AudioProcessor {
         }
         while let Ok(m) = self.monitor_rx.pop() {
             self.monitor_cfg = m;
+        }
+        if self.vad.is_none()
+            && let Ok(v) = self.vad_rx.pop()
+        {
+            self.vad = Some(v);
         }
         if settings_changed {
             self.publish_latency();
@@ -311,6 +336,7 @@ impl AudioProcessor {
         main_out.copy_from_slice(&input[..n]);
         let Self {
             main,
+            vad,
             acc,
             meters_tx,
             scope_in_tx,
@@ -320,11 +346,19 @@ impl AudioProcessor {
         for block in main_out.chunks_mut(dsp::BLOCK_MAIN) {
             push_slice(scope_in_tx, block);
             acc.input(block);
+            if let Some(v) = vad {
+                v.push(block);
+                main.set_speech_probability(v.speech_probability());
+            }
             let chain_meters = main.process(block);
             push_slice(scope_out_tx, block);
             acc.output(block, &chain_meters);
             if acc.samples >= dsp::BLOCK_MAIN {
-                let _ = meters_tx.push(acc.frame(main.denoise_missed_frames()));
+                let models = ModelMeters {
+                    vad_inference_ms: vad.as_ref().and_then(|v| v.inference_ms()),
+                    denoise_inference_ms: main.denoise_inference_ms(),
+                };
+                let _ = meters_tx.push(acc.frame(main.denoise_missed_frames(), models));
             }
         }
     }
@@ -354,6 +388,12 @@ impl AudioProcessor {
             .monitor_latency
             .store(self.monitor.latency_samples(), Ordering::Release);
     }
+}
+
+/// Model run times for a meter frame.
+struct ModelMeters {
+    vad_inference_ms: Option<f32>,
+    denoise_inference_ms: Option<f32>,
 }
 
 /// Main-path meter values over the samples since the last meter frame.
@@ -391,7 +431,7 @@ impl MeterAcc {
     /// The frame for the samples gathered so far, at least one frame's
     /// worth; starts a new one. The samples beyond one frame carry over, so
     /// frames keep a 100 Hz rate whatever the block size.
-    fn frame(&mut self, denoise_missed_frames: u64) -> MeterFrame {
+    fn frame(&mut self, denoise_missed_frames: u64, models: ModelMeters) -> MeterFrame {
         let n = self.samples as f32;
         let frame = MeterFrame {
             in_peak_db: to_db(self.in_peak),
@@ -404,6 +444,10 @@ impl MeterAcc {
             true_peak_db: self.chain.true_peak_db,
             gain_reduction_db: self.chain.gain_reduction_db,
             denoise_missed_frames,
+            speech_probability: self.chain.speech_probability,
+            room_db: self.chain.room_db,
+            vad_inference_ms: models.vad_inference_ms,
+            denoise_inference_ms: models.denoise_inference_ms,
         };
         *self = Self {
             samples: self.samples - dsp::BLOCK_MAIN,

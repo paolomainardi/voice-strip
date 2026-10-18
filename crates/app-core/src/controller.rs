@@ -36,6 +36,8 @@ pub struct UiState {
     pub chain: ChainSettings,
     /// Name of the active voice profile (person plus microphone).
     pub voice_profile: String,
+    /// Whether a calibration has set the profile in this session.
+    pub calibrated: bool,
     /// Process CPU load of the audio thread, percent of one core.
     pub cpu_percent: f32,
     /// Calibration in progress or its last outcome; `None` when idle.
@@ -49,6 +51,17 @@ pub struct UiState {
     /// What waits for the model: the host shows the download dialog while
     /// this is set, and applies it once the model is ready.
     pub model_prompt: Option<ModelUse>,
+    /// The voice detector (Silero VAD), embedded and always on.
+    pub voice_detector: DetectorState,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum DetectorState {
+    Loading,
+    Running,
+    /// It could not start, with the reason; the expander keeps its fixed
+    /// threshold.
+    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -121,6 +134,15 @@ pub struct Controller {
     /// Missed-frame count and time at the start of the current watch window.
     miss_watch: Option<(u64, std::time::Instant)>,
     download: Option<denoise_neural::model::Download>,
+    /// Where calibrations are saved per microphone; `None` keeps them in
+    /// memory only (tests).
+    profiles_dir: Option<std::path::PathBuf>,
+    /// Device ID of the selected microphone ([`profiles::DEFAULT_INPUT`]
+    /// for the system default).
+    input_id: String,
+    vad_loading: Option<std::sync::mpsc::Receiver<Result<vad::SileroVad, String>>>,
+    /// A started detector the engine has not accepted yet.
+    vad_pending: Option<Box<dyn dsp::VoiceDetector>>,
 }
 
 /// Noise removal is switched off when the denoiser misses more than this
@@ -153,6 +175,10 @@ impl Controller {
             shrink_since: None,
             miss_watch: None,
             download: None,
+            profiles_dir: None,
+            input_id: crate::profiles::DEFAULT_INPUT.into(),
+            vad_loading: Some(spawn_vad()),
+            vad_pending: None,
             state: UiState {
                 on: true,
                 muted: false,
@@ -174,6 +200,7 @@ impl Controller {
                 virtual_device: String::new(),
                 chain: ChainSettings::default(),
                 voice_profile: String::new(),
+                calibrated: false,
                 cpu_percent: 0.0,
                 calibration: None,
                 notice: None,
@@ -183,11 +210,38 @@ impl Controller {
                     ModelState::Missing
                 },
                 model_prompt: None,
+                voice_detector: DetectorState::Loading,
             },
         };
         c.sync_chain();
         c.push_settings();
         c
+    }
+
+    /// Saves calibrations per microphone in `dir` and loads them back when
+    /// a microphone is selected.
+    pub fn set_profiles_dir(&mut self, dir: std::path::PathBuf) {
+        self.profiles_dir = Some(dir);
+    }
+
+    /// The microphone in use changed: `id` is its device ID (`None` for the
+    /// system default), `label` its name. Loads the calibration saved for
+    /// it, or falls back to the default profile.
+    pub fn select_input(&mut self, id: Option<&str>, label: String) {
+        self.input_id = id.unwrap_or(crate::profiles::DEFAULT_INPUT).to_string();
+        self.state.input_device = label;
+        let saved = self
+            .profiles_dir
+            .as_deref()
+            .and_then(|d| crate::profiles::load(d, &self.input_id));
+        self.state.calibrated = saved.is_some();
+        self.state.voice_profile = if saved.is_some() {
+            "Calibrated".into()
+        } else {
+            "Default".into()
+        };
+        self.profile = saved.unwrap_or_default();
+        self.push_settings();
     }
 
     /// Sets the backend's own device latency, added to the displayed mic
@@ -266,6 +320,17 @@ impl Controller {
                 Some(Ok(profile)) => {
                     status.message = Some("Calibrated".into());
                     self.state.voice_profile = "Calibrated".into();
+                    self.state.calibrated = true;
+                    if let Some(dir) = &self.profiles_dir
+                        && let Err(e) = crate::profiles::save(
+                            dir,
+                            &self.input_id,
+                            &self.state.input_device,
+                            &profile,
+                        )
+                    {
+                        self.state.notice = Some(format!("Calibration not saved: {e}"));
+                    }
                     self.profile = profile;
                     self.push_settings();
                 }
@@ -287,6 +352,7 @@ impl Controller {
     pub fn tick(&mut self) {
         self.pump_calibration();
         self.poll_download();
+        self.poll_vad();
         self.retry_pending();
         self.poll_loading();
         // Follow host block changes (the backend may report it after start).
@@ -576,6 +642,18 @@ impl Controller {
     }
 }
 
+/// Starts the voice detector on a background thread.
+fn spawn_vad() -> std::sync::mpsc::Receiver<Result<vad::SileroVad, String>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("vad-load".into())
+        .spawn(move || {
+            let _ = tx.send(vad::SileroVad::spawn().map_err(|e| e.to_string()));
+        })
+        .expect("spawn voice detector loader");
+    rx
+}
+
 /// Loads the neural model on a background thread and builds a chain for
 /// `path` around it.
 fn spawn_loader(path: dsp::PathKind, handoff: usize) -> std::sync::mpsc::Receiver<LoadResult> {
@@ -604,6 +682,33 @@ fn spawn_loader(path: dsp::PathKind, handoff: usize) -> std::sync::mpsc::Receive
 }
 
 impl Controller {
+    /// Hands the voice detector to the engine once it has started.
+    fn poll_vad(&mut self) {
+        if let Some(rx) = &self.vad_loading {
+            match rx.try_recv() {
+                Ok(Ok(v)) => {
+                    self.vad_loading = None;
+                    self.vad_pending = Some(Box::new(v));
+                }
+                Ok(Err(e)) => {
+                    self.vad_loading = None;
+                    self.state.voice_detector = DetectorState::Failed(e);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.vad_loading = None;
+                    self.state.voice_detector = DetectorState::Failed("the loader stopped".into());
+                }
+            }
+        }
+        if let Some(v) = self.vad_pending.take() {
+            match self.engine.set_voice_detector(v) {
+                Ok(()) => self.state.voice_detector = DetectorState::Running,
+                Err(v) => self.vad_pending = Some(v),
+            }
+        }
+    }
+
     /// Hands a chain to the engine, or keeps it for a retry on the next tick.
     fn submit_chain(&mut self, chain: Box<dsp::Chain>, neural: bool, handoff: usize) {
         let monitor = chain.path() == dsp::PathKind::Monitor;

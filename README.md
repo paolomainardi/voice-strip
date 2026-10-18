@@ -6,7 +6,7 @@
 
 <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-555" alt="Platforms: Linux and macOS"> <img src="https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-555" alt="Licence: MIT OR Apache-2.0"> <img src="https://img.shields.io/badge/built%20with-Rust-555" alt="Built with Rust">
 
-<img src="docs/screenshots/standard.png" alt="Standard view: vintage faceplate with mute and on buttons, input and output VU meters, microphone picker, gain reduction LEDs, five preset buttons, noise removal levels, Intensity knob, headphone switch, A/B button, calibrate and advanced links" height="420"> <img src="docs/screenshots/advanced.png" alt="Advanced view: device header with mute and bypass, presets and noise removal, spectrum analyzer, loudness panel, the nine processing modules with gain reduction meters, and headphone monitoring" height="420">
+<img src="docs/screenshots/standard.png" alt="Standard view: vintage faceplate with mute and on buttons, input and output VU meters with a voice lamp lit while you speak, microphone picker, gain reduction LEDs, five preset buttons, noise removal levels, Intensity knob, monitor switch, A/B button, calibrate and advanced links" height="420"> <img src="docs/screenshots/advanced.png" alt="Advanced view: device header with mute and bypass, presets and noise removal, the two AI models at work with speech probability, room noise and run time, spectrum analyzer, loudness panel, the nine processing modules with gain reduction meters, and headphone monitoring" height="420">
 
 </div>
 
@@ -22,9 +22,10 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 - [Install on Linux from a release](#install-on-linux-from-a-release)
 - [Install on macOS from source](#install-on-macos-from-source)
 - [Build from source on Linux](#build-from-source-on-linux)
+- [First run: calibrate](#first-run-calibrate)
 - [Using it](#using-it): [remote control](#remote-control)
 - [Latency](#latency)
-- [Noise removal model](#noise-removal-model)
+- [AI models](#ai-models): [voice detection](#voice-detection), [noise removal](#noise-removal)
 - [Development](#development)
 - [Contribute](#contribute)
 - [Licence](#licence)
@@ -35,7 +36,7 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 <tr>
 <td width="50%" valign="top">
 
-**One knob, broadcast sound.** Pick a preset (Broadcast, Podcast, Call, Stream or Narration) and set the Intensity. A 15 s calibration fits the chain to your microphone and room.
+**One knob, broadcast sound.** Pick a preset (Broadcast, Podcast, Call, Stream or Narration) and set the Intensity. A 15 s calibration fits the chain to your microphone.
 
 </td>
 <td width="50%" valign="top">
@@ -68,6 +69,18 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 
 </td>
 </tr>
+<tr>
+<td valign="top">
+
+**It knows when you speak.** A voice detection model listens all the time. While you are silent it learns your room, so pauses drop to quiet with no setup, and the loudness follows only your voice.
+
+</td>
+<td valign="top">
+
+**Neural noise removal.** DeepFilterNet3 removes fans, keyboards and traffic in real time, in 0.13 ms of computer time for every 10 ms of voice.
+
+</td>
+</tr>
 </table>
 
 ## The chain
@@ -75,7 +88,7 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 Nine stages in a fixed order, tuned together by the preset and the Intensity knob:
 
 1. **Input**: high-pass filter and proximity shelf.
-2. **Noise removal**: the [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) low-latency model plus a pause expander, in four levels.
+2. **Noise removal**: the [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet) low-latency model plus a pause expander, in four levels. The expander follows the room noise that the voice detection model measures between your words.
 3. **De-plosive**: tames pops on P and B.
 4. **De-esser**: tames harsh S sounds.
 5. **EQ**: static tone shaping plus dynamic bands that act only on excess.
@@ -154,7 +167,19 @@ just start                    # build, then run in the background on the default
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip. `just status`, `just logs` and `just stop` manage the running app; `just start --input <node name>` starts on a given microphone (see `just devices`).
 
-Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB) on every system: the app asks before downloading it (see [Noise removal model](#noise-removal-model)).
+Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB) on every system: the app asks before downloading it (see [Noise removal](#noise-removal)).
+
+## First run: calibrate
+
+Calibrate once per microphone, and again after changing its gain. Voice Strip saves the calibration for each microphone and loads it back when you select that microphone. Until a microphone is calibrated, the CALIBRATE link shows an amber lamp, and the advanced view marks the voice profile as not calibrated.
+
+1. Pick your microphone and set its gain so your voice moves the INPUT meter.
+2. Click **CALIBRATE** (or **Recalibrate (15 s)** in the advanced view).
+3. Stay silent for 5 s (`QUIET`), then talk normally for 10 s (`SPEAK`), for example by reading this page aloud.
+
+Calibration sets the input level, so every stage works at the level its presets were tuned for. It also finds the frequency of your S sounds for the de-esser and corrects the tone of your microphone. The room noise needs no calibration: the voice detection model keeps measuring it while you are silent.
+
+Calibrations live in `~/.config/voice-strip/profiles/` on Linux (`$XDG_CONFIG_HOME` if set) and `~/Library/Application Support/voice-strip/profiles/` on macOS, one file per microphone. Delete a file to forget that calibration.
 
 ## Using it
 
@@ -197,7 +222,21 @@ Processing delay from the microphone to the virtual microphone:
 
 On macOS, reaching the `Voice Strip` device adds about 3.5 ms (resampler and transport margin). The headphone monitor measures about 10 ms from microphone to speakers on a MacBook. On Linux, `default.clock.power-of-two-quantum = false` in the PipeWire configuration keeps the 480 quantum Voice Strip asks for. Details: [docs/denoise.md](docs/denoise.md).
 
-## Noise removal model
+## AI models
+
+Two neural networks run on your computer, next to the classic processing. No audio leaves the computer. The advanced view shows both at work: a lamp per model that lights while it acts, what it measures, and how long it takes. In the standard view, the VOICE lamp in the input meter lights while you speak. Hover either for details.
+
+### Voice detection
+
+[Silero VAD](https://github.com/snakers4/silero-vad) 6.2.3 (MIT) tells speech from everything else, 32 ms at a time, in about 0.04 ms. Voice Strip uses it to steer, never to cut:
+
+- **Quiet pauses without setup.** While you are silent, the pause expander measures your room and sets its threshold just above it. Pauses turn down even with noise removal off, and it adapts when the room changes.
+- **Loudness that follows your voice.** The leveler measures loudness only while you speak, so long pauses or a noisy room never push the volume up.
+- **Nothing lost.** The expander still opens on the audio level alone, so no word onset waits for the model, and the model adds no delay.
+
+The model is 2.8 MB and built into the binary: it is always on, with no download. The build fetches it from the Silero VAD repository at a fixed commit and checks its SHA-256. For offline builds, point `VOICE_STRIP_VAD_MODEL` at a copy of `silero_vad_op18_ifless.onnx`. Design and measurements: [docs/voice-detection.md](docs/voice-detection.md).
+
+### Noise removal
 
 Noise removal uses the low-latency variant of [DeepFilterNet3](https://github.com/Rikorose/DeepFilterNet), a real-time speech enhancement network by Hendrik Schröter and colleagues ([paper](https://arxiv.org/abs/2305.08227)). The model is not part of the repository or the binary. The app finds it in this order:
 
