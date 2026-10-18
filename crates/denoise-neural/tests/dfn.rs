@@ -97,7 +97,10 @@ fn percentile(v: &mut [f64], p: f64) -> f64 {
 #[test]
 #[ignore = "timing-sensitive: run `just test-denoise` on an idle machine"]
 fn inference_time_per_frame() {
-    let mut m = DfTract::new(DfParams::default(), &RuntimeParams::default_with_ch(1)).unwrap();
+    let params =
+        DfParams::new(denoise_neural::model::locate().expect("model: run just fetch-model"))
+            .unwrap();
+    let mut m = DfTract::new(params, &RuntimeParams::default_with_ch(1)).unwrap();
     let hop = m.hop_size;
     let (v, _) = voice(12.0);
     let nz = noise(v.len(), 0.05);

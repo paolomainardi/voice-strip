@@ -6,10 +6,23 @@ Stage 2 of the chain removes background noise with DeepFilterNet3 and then appli
 
 | Item | Origin | License |
 |---|---|---|
-| `deep_filter` crate (library `df`) | git dependency on [Rikorose/DeepFilterNet](https://github.com/Rikorose/DeepFilterNet), tag `v0.5.6`, commit `978576aa8400552a4ce9730838c635aa30db5e61` | MIT or Apache-2.0 |
+| `deep_filter` crate (library `df`) | git dependency on the fork [paolomainardi/DeepFilterNet](https://github.com/paolomainardi/DeepFilterNet), branch `voice-strip`, commit `0feb1e9382284a90e916d3ff4b0bd3acecda5b51` | MIT or Apache-2.0 |
 | DeepFilterNet3 low-latency ONNX model, `DeepFilterNet3_ll_onnx.tar.gz` (34.7 MB) | same commit, `models/`, SHA-256 `5998e58e8ba0e09bb76986ef97b84afa065a571ef282d4a1222f341e3251cf3a` | MIT or Apache-2.0 |
 
-Neither is in the repository. The newest `deep_filter` on crates.io (0.2.5, 2022) predates the realtime tract engine, so the crate comes from git at the pinned commit; it pulls `tract` 0.19 and `ndarray` 0.15 (old but pinned by upstream). Cargo does not apply our lints to it.
+Neither is in the repository. The newest `deep_filter` on crates.io (0.2.5, 2022) predates the realtime tract engine, so the crate comes from git at a pinned commit. Cargo does not apply our lints to it.
+
+The fork is upstream v0.5.6 plus a port to `tract` 0.23.9 and `ndarray` 0.17. Upstream has been dormant since 2024 and its `tract` 0.19 is a legacy line (see [sonos/tract#2152](https://github.com/sonos/tract/issues/2152)). The model file is the same as upstream, so its URL and checksum are unchanged.
+
+Measured on a Ryzen 9 9950X:
+
+- Inference per 10 ms frame: p50 0.147 ms on tract 0.19.16, 0.132 to 0.135 ms on 0.23.8 and 0.23.9 (10% faster). p99 about 1.06 ms, now about 0.84 ms (19% faster).
+- Output on the same noisy LibriSpeech input: at most 4.7e-6 per sample from the 0.19 output, 106 dB below the signal. This is float rounding with no drift. 0.23.9 is bit-identical to 0.23.8.
+- Real speech: pause noise -25.0 dB, speech -0.3 dB, declared latency 1031 samples equals the measured latency, 0 missed frames, also with all cores saturated.
+- The `tract` 0.23 GRU state regression ([sonos/tract#2157](https://github.com/sonos/tract/issues/2157)) was fixed by sonos/tract PR #2169 (merged 2026-04-30), before 0.23.8.
+
+### Maintaining the fork
+
+Changes go on the branch `voice-strip` as small commits. Voice Strip pins a full commit SHA, never the branch. To update `tract`, bump the version in the fork, then run the validation: `just test-denoise`, `just test-timing`, and a sample-by-sample comparison of the enhanced output against the previous version. Then bump the SHA in Voice Strip through a pull request. Never rewrite pushed fork history. If upstream resumes, rebase the branch onto upstream and drop what upstream merged.
 
 The model is not embedded in the binary either (`default-model-ll` is off). `denoise_neural::model::locate` finds it, in order:
 

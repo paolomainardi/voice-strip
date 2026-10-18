@@ -121,6 +121,7 @@ curl -s "https://crates.io/api/v1/crates/<crate>" | jq '{max_stable: .crate.max_
 
 6. Voice Strip is MIT OR Apache-2.0. Dependencies must allow that: prefer MIT, Apache-2.0, BSD, Zlib; copyleft-only licences (GPL, LGPL, MPL without a permissive alternative) need an explicit decision. Record bundled or downloaded third-party material in `THIRD-PARTY.md`.
 7. Do not vendor code or models. Large assets are downloaded at runtime and verified by checksum, as the noise removal model is (`crates/denoise-neural/src/model.rs`).
+8. tract 0.23.9 is an explicit, owner-approved exception to the 5-day rule (it was 3 days old when adopted). The DeepFilterNet fork is maintained as described in `docs/denoise.md`.
 
 ## Testing
 
