@@ -1,0 +1,20 @@
+name: upstream
+
+# Weekly check for new tract and DeepFilterNet releases. A failure means an
+# upstream update to review: see scripts/check-upstream.sh.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: scripts/check-upstream.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

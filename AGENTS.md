@@ -133,7 +133,7 @@ curl -s "https://crates.io/api/v1/crates/<crate>" | jq '{max_stable: .crate.max_
 
 ## CI/CD
 
-GitHub Actions, `.github/workflows/check.yml`: `just check` on Ubuntu 24.04 and macOS 15, for pushes to `main` and every pull request. `.github/workflows/e2e.yml` runs `just test-pipewire` and `just test-e2e` in an Arch Linux container and uploads `target/e2e/`. Actions are pinned to full commit SHAs; update them with the Dependency Safety rules above.
+GitHub Actions, `.github/workflows/check.yml`: `just check` on Ubuntu 24.04 and macOS 15, for pushes to `main` and every pull request. `.github/workflows/upstream.yml` runs `scripts/check-upstream.sh` every Monday and fails when tract or DeepFilterNet has an upstream update to review; after reviewing, bump the pin or the reviewed values in the script. `.github/workflows/e2e.yml` runs `just test-pipewire` and `just test-e2e` in an Arch Linux container and uploads `target/e2e/`. Actions are pinned to full commit SHAs; update them with the Dependency Safety rules above.
 
 ## Command Safety
 
