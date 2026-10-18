@@ -7,6 +7,7 @@ use crate::stages::{
     saturation::Saturation,
 };
 use crate::util::{Delay, Smoother};
+use crate::voice::SpeechGate;
 
 /// Which output path a chain instance serves. The monitor chain skips the
 /// modules for which [`Module::in_monitor_path`] is false.
@@ -27,6 +28,11 @@ pub struct ChainMeters {
     pub lufs_short_term: f32,
     /// Output true peak over this block, dBTP.
     pub true_peak_db: f32,
+    /// Speech probability from the voice detector, `None` without one.
+    pub speech_probability: Option<f32>,
+    /// Room noise learned while nobody speaks, dBFS RMS at the expander
+    /// input, `None` while unknown.
+    pub room_db: Option<f32>,
 }
 
 impl Default for ChainMeters {
@@ -36,6 +42,8 @@ impl Default for ChainMeters {
             lufs_momentary: f32::NEG_INFINITY,
             lufs_short_term: f32::NEG_INFINITY,
             true_peak_db: f32::NEG_INFINITY,
+            speech_probability: None,
+            room_db: None,
         }
     }
 }
@@ -81,6 +89,8 @@ pub struct Chain {
     bypass_scratch: Vec<f32>,
     loudness: LoudnessMeter,
     latency: usize,
+    speech_probability: Option<f32>,
+    speech_gate: SpeechGate,
 }
 
 impl Chain {
@@ -130,6 +140,8 @@ impl Chain {
             bypass_scratch: vec![0.0; max_block],
             loudness: LoudnessMeter::new(),
             latency: 0,
+            speech_probability: None,
+            speech_gate: SpeechGate::default(),
         };
         let mut total = 0;
         // The monitor path skips the denoiser unless a neural one is given
@@ -199,6 +211,35 @@ impl Chain {
         (self.leveler.gain_db(), self.leveler.correction_db())
     }
 
+    /// Latest speech probability from the voice detector, for the coming
+    /// block; `None` without a detector. Realtime-safe.
+    pub fn set_speech_probability(&mut self, p: Option<f32>) {
+        self.speech_probability = p;
+        let speech = p.map(|p| self.speech_gate.update(p));
+        self.denoise.set_speech(speech);
+        self.leveler.set_speech(speech);
+    }
+
+    /// Room noise learned while nobody speaks, dBFS RMS.
+    pub fn room_db(&self) -> Option<f32> {
+        self.denoise.room_db()
+    }
+
+    /// Starts from the room another chain learned. Realtime-safe.
+    pub fn seed_room(&mut self, db: Option<f32>) {
+        self.denoise.seed_room(db);
+    }
+
+    /// Expander threshold in use, dBFS.
+    pub fn expander_threshold_db(&self) -> f32 {
+        self.denoise.threshold_db()
+    }
+
+    /// Average neural denoiser run time per frame, ms; `None` without one.
+    pub fn denoise_inference_ms(&self) -> Option<f32> {
+        self.denoise.inference_ms()
+    }
+
     /// Frames the neural denoiser failed to deliver in time.
     pub fn denoise_missed_frames(&self) -> u64 {
         self.denoise.missed_frames()
@@ -219,7 +260,10 @@ impl Chain {
     pub fn process(&mut self, buf: &mut [f32]) -> ChainMeters {
         let n = buf.len();
         debug_assert!(n <= self.scratch.len());
-        let mut meters = ChainMeters::default();
+        let mut meters = ChainMeters {
+            speech_probability: self.speech_probability,
+            ..ChainMeters::default()
+        };
 
         let bypass_active = !(self.bypass.is_settled() && self.bypass.value() == 0.0);
         if bypass_active {
@@ -270,6 +314,7 @@ impl Chain {
             meters.lufs_momentary = self.loudness.momentary();
             meters.lufs_short_term = self.loudness.short_term();
             meters.true_peak_db = self.loudness.take_true_peak_db();
+            meters.room_db = self.denoise.room_db();
         }
         meters
     }

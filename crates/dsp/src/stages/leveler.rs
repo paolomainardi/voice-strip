@@ -10,6 +10,10 @@
 //! driven by the chain's final output (fed back through
 //! [`Leveler::observe_output`]) removes the residual error left by later
 //! stages, such as the limiter shaving loudness off peaks. Zero latency.
+//!
+//! With a voice detector (see [`crate::voice`]), a 400 ms window in which
+//! it heard no speech at all is ignored on both sides, so steady noise
+//! loud enough to pass the gates never moves the gain.
 
 use crate::Stage;
 use crate::loudness::KWeighting;
@@ -58,6 +62,12 @@ pub struct Leveler {
     slew: f32,
     /// Input tracking coefficient per sub-block (`TRACK` scaled by speed).
     track: f64,
+    /// Speech from the voice detector, `None` without one.
+    speech: Option<bool>,
+    /// Speech heard in the current and last sub-blocks, input side.
+    speech_sub: [bool; 4],
+    /// Speech heard in the current and last sub-blocks, output side.
+    out_speech_sub: [bool; 4],
 }
 
 impl Default for Leveler {
@@ -95,7 +105,25 @@ impl Leveler {
             gain_lin: 1.0,
             slew: SLEW_DB_S / crate::SAMPLE_RATE as f32,
             track: TRACK,
+            speech: None,
+            speech_sub: [false; 4],
+            out_speech_sub: [false; 4],
         }
+    }
+
+    /// Speech from the voice detector for the coming block, `None` without
+    /// a detector.
+    pub fn set_speech(&mut self, speech: Option<bool>) {
+        self.speech = speech;
+        if speech == Some(true) {
+            self.speech_sub[self.sub_pos] = true;
+            self.out_speech_sub[self.out_pos] = true;
+        }
+    }
+
+    /// Whether the detector, if any, heard speech in the window.
+    fn window_has_speech(&self, subs: &[bool; 4]) -> bool {
+        self.speech.is_none() || subs.iter().any(|&s| s)
     }
 
     pub fn set(&mut self, s: &ModuleSettings) {
@@ -125,12 +153,14 @@ impl Leveler {
         self.sub_count = (self.sub_count + 1).min(4);
         self.acc = 0.0;
         self.n = 0;
+        let speech = self.window_has_speech(&self.speech_sub);
+        self.speech_sub[self.sub_pos] = self.speech == Some(true);
         if self.sub_count < 4 {
             return;
         }
         let m = self.sub.iter().sum::<f64>() / 4.0;
         let m_lufs = lufs(m);
-        if m_lufs < ABS_GATE_LUFS {
+        if m_lufs < ABS_GATE_LUFS || !speech {
             return;
         }
         match self.tracked {
@@ -173,13 +203,16 @@ impl Leveler {
             self.out_count = (self.out_count + 1).min(4);
             self.out_acc = 0.0;
             self.out_n = 0;
+            let speech = self.window_has_speech(&self.out_speech_sub);
+            self.out_speech_sub[self.out_pos] = self.speech == Some(true);
             if self.out_count < 4 {
                 continue;
             }
             let m = self.out_sub.iter().sum::<f64>() / 4.0;
             let m_lufs = lufs(m);
             // Same gating as the input side: ignore pauses.
-            let gated = m_lufs < ABS_GATE_LUFS
+            let gated = !speech
+                || m_lufs < ABS_GATE_LUFS
                 || self
                     .out_tracked
                     .is_some_and(|t| m_lufs < lufs(t) - REL_GATE_LU);
@@ -222,6 +255,8 @@ impl Stage for Leveler {
         self.correction_db = 0.0;
         self.gain_db = 0.0;
         self.gain_lin = 1.0;
+        self.speech_sub = [false; 4];
+        self.out_speech_sub = [false; 4];
     }
 
     fn process(&mut self, buf: &mut [f32]) {

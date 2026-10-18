@@ -31,7 +31,7 @@
 use std::fmt::Write;
 
 use crate::calibration::Phase;
-use crate::controller::{Controller, ModelState, UiState};
+use crate::controller::{Controller, DetectorState, ModelState, UiState};
 use crate::presets::{DenoiseLevel, PresetId, builtin};
 
 #[cfg(unix)]
@@ -278,6 +278,20 @@ pub fn state_json(st: &UiState, extras: Extras) -> String {
         ModelState::Ready => "ready",
     };
     let _ = write!(s, ",\"model\":\"{model}\"");
+    let detector = match st.voice_detector {
+        DetectorState::Loading => "loading",
+        DetectorState::Running => "running",
+        DetectorState::Failed(_) => "failed",
+    };
+    let _ = write!(s, ",\"voice_detector\":\"{detector}\"");
+    let opt = |s: &mut String, v: Option<f32>| match v {
+        Some(v) => push_num(s, v),
+        None => s.push_str("null"),
+    };
+    s.push_str(",\"speech\":");
+    opt(&mut s, st.meters.speech_probability);
+    s.push_str(",\"room_db\":");
+    opt(&mut s, st.meters.room_db);
     let _ = write!(s, ",\"intensity\":{}", st.intensity);
     let _ = write!(s, ",\"phones\":{}", st.monitor.enabled);
     s.push_str(",\"input\":");
@@ -292,6 +306,7 @@ pub fn state_json(st: &UiState, extras: Extras) -> String {
         .as_ref()
         .is_some_and(|c| c.phase != Phase::Done);
     let _ = write!(s, ",\"calibrating\":{calibrating}");
+    let _ = write!(s, ",\"calibrated\":{}", st.calibrated);
     s.push_str(",\"notice\":");
     match &st.notice {
         Some(n) => push_str(&mut s, n),

@@ -63,6 +63,7 @@ fn process_does_not_allocate() {
             let mut i = 0;
             let mut size = 1;
             while i + size <= buf.len() {
+                chain.set_speech_probability(Some(((i / 9_600) % 2) as f32));
                 chain.process(&mut buf[i..i + size]);
                 i += size;
                 size = size % max + 1;
@@ -351,6 +352,140 @@ fn expander_reduces_noise_in_pauses() {
     assert!(voice.abs() < 1.0, "voice change {voice} dB");
 }
 
+/// Runs `x` through a main chain fed with a simulated voice detector: it
+/// reports `speech[i]` for the audio 60 ms late, as the real one does.
+fn run_with_detector(settings: &ChainSettings, x: &[f32], speech: &[bool]) -> (Vec<f32>, Chain) {
+    const LAG: usize = 2_880;
+    let mut chain = Chain::new(PathKind::Main, dsp::BLOCK_MAIN);
+    chain.set_settings(settings);
+    let mut out = x.to_vec();
+    for (b, block) in out.chunks_mut(dsp::BLOCK_MAIN).enumerate() {
+        let heard = speech[(b * dsp::BLOCK_MAIN).saturating_sub(LAG)];
+        chain.set_speech_probability(Some(if heard { 0.95 } else { 0.05 }));
+        chain.process(block);
+    }
+    (out, chain)
+}
+
+/// Room-following expander: with no calibration (fixed threshold far below
+/// the noise), the detector's silences teach the stage the room: its
+/// estimate lands within 2 dB of the noise, pauses drop by at least 10 dB
+/// and speech changes by less than 1 dB.
+#[test]
+fn expander_learns_the_room() {
+    let mut x = speech(20.0, 1.0, 21);
+    normalize(&mut x, -20.0);
+    let mask: Vec<bool> = (0..x.len()).map(|i| (i as f32 / FS) % 5.0 < 3.8).collect();
+    let mut n = Noise::new(17);
+    for v in x.iter_mut() {
+        *v += 0.003 * n.next();
+    }
+    let mut s = only(Module::Denoise, neutral());
+    s.modules.denoise_expander_threshold_db = -120.0;
+    s.modules.denoise_expander_margin_db = Some(12.0);
+    let (y, chain) = run_with_detector(&s, &x, &mask);
+    let pick = |sig: &[f32], want: bool| -> Vec<f32> {
+        (5 * 48_000..sig.len())
+            .filter(|&i| {
+                mask[i] == want
+                    && mask[i.saturating_sub(9_600)] == want
+                    && mask[(i + 2_400).min(sig.len() - 1)] == want
+            })
+            .map(|i| sig[i])
+            .collect()
+    };
+    let room = chain.room_db().expect("room learned");
+    let noise = rms_db(&pick(&x, false));
+    assert!(
+        (room - noise).abs() < 2.0,
+        "room {room:.1} dB, noise {noise:.1} dB"
+    );
+    let pause = rms_db(&pick(&y, false)) - noise;
+    let voice = rms_db(&pick(&y, true)) - rms_db(&pick(&x, true));
+    assert!(pause < -10.0, "pause change {pause} dB");
+    assert!(voice.abs() < 1.0, "voice change {voice} dB");
+}
+
+/// A detector that misses speech now and then (0.5 s gaps inside every
+/// sentence) does not drag the room up: it stays within 3 dB of the noise.
+#[test]
+fn room_survives_missed_speech() {
+    let mut x = speech(20.0, 1.0, 21);
+    normalize(&mut x, -20.0);
+    let mask: Vec<bool> = (0..x.len()).map(|i| (i as f32 / FS) % 5.0 < 3.8).collect();
+    let missed: Vec<bool> = (0..x.len())
+        .map(|i| {
+            let t = (i as f32 / FS) % 5.0;
+            mask[i] && !(1.5..2.0).contains(&t)
+        })
+        .collect();
+    let mut n = Noise::new(17);
+    for v in x.iter_mut() {
+        *v += 0.003 * n.next();
+    }
+    let mut s = only(Module::Denoise, neutral());
+    s.modules.denoise_expander_margin_db = Some(12.0);
+    let (_, chain) = run_with_detector(&s, &x, &missed);
+    let noise_only: Vec<f32> = (0..x.len()).filter(|&i| !mask[i]).map(|i| x[i]).collect();
+    let room = chain.room_db().expect("room learned");
+    let noise = rms_db(&noise_only);
+    assert!(room - noise < 3.0, "room {room:.1} dB, noise {noise:.1} dB");
+}
+
+/// Without a detector the room stays unknown and the fixed threshold holds.
+#[test]
+fn expander_keeps_fixed_threshold_without_detector() {
+    let mut s = only(Module::Denoise, neutral());
+    s.modules.denoise_expander_threshold_db = -55.0;
+    s.modules.denoise_expander_margin_db = Some(12.0);
+    let mut chain = Chain::new(PathKind::Main, dsp::BLOCK_MAIN);
+    chain.set_settings(&s);
+    let mut x = test_signal();
+    for block in x.chunks_mut(dsp::BLOCK_MAIN) {
+        chain.process(block);
+    }
+    assert_eq!(chain.room_db(), None);
+    assert_eq!(chain.expander_threshold_db(), -55.0);
+}
+
+/// Leveler gate: steady noise loud enough to pass the loudness gates moves
+/// the gain by more than 3 dB without a detector, and by less than 0.5 dB
+/// when the detector hears no speech in it.
+#[test]
+fn leveler_ignores_noise_without_speech() {
+    let mut s = only(Module::Leveler, neutral());
+    s.modules.leveler_target_lufs = Some(-16.0);
+    let mut x = speech(5.0, 1.0, 11)[..3 * 48_000].to_vec();
+    normalize(&mut x, -20.0);
+    let speech_len = x.len();
+    let mut n = Noise::new(5);
+    let mut noise: Vec<f32> = (0..12 * 48_000).map(|_| n.next()).collect();
+    normalize(&mut noise, -40.0);
+    x.extend(noise);
+    let mask: Vec<bool> = (0..x.len()).map(|i| i < speech_len).collect();
+    let gain_change = |detector: bool| {
+        let mut chain = Chain::new(PathKind::Main, dsp::BLOCK_MAIN);
+        chain.set_settings(&s);
+        let mut y = x.clone();
+        let mut at_end_of_speech = 0.0;
+        for (b, block) in y.chunks_mut(dsp::BLOCK_MAIN).enumerate() {
+            if detector {
+                let heard = mask[(b * dsp::BLOCK_MAIN).saturating_sub(2_880)];
+                chain.set_speech_probability(Some(if heard { 0.95 } else { 0.05 }));
+            }
+            chain.process(block);
+            if (b + 1) * dsp::BLOCK_MAIN == speech_len {
+                at_end_of_speech = chain.leveler_state_db().0;
+            }
+        }
+        chain.leveler_state_db().0 - at_end_of_speech
+    };
+    let without = gain_change(false);
+    let with = gain_change(true);
+    assert!(without.abs() > 3.0, "without detector: {without:.2} dB");
+    assert!(with.abs() < 0.5, "with detector: {with:.2} dB");
+}
+
 /// Saturation adds harmonics but keeps small-signal gain at unity.
 #[test]
 fn saturation_unity_small_signal() {
@@ -368,6 +503,7 @@ fn active_settings(target: f32) -> ChainSettings {
             hpf_hz: 80.0,
             proximity_comp_db: -2.0,
             denoise_expander_threshold_db: -55.0,
+            denoise_expander_margin_db: Some(8.0),
             deplosive_threshold_db: -30.0,
             deesser_freq_hz: 6500.0,
             deesser_threshold_db: -30.0,

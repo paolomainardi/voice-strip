@@ -118,6 +118,12 @@ pub struct AdvancedView {
     /// The monitor device button, placed while painting (empty when the
     /// monitor panel is collapsed).
     output_rect: Rect,
+    /// The models line at the right of the voice profile row, placed while
+    /// painting (empty when it does not fit).
+    models_rect: Rect,
+    speech: Smoother,
+    speech_gate: dsp::voice::SpeechGate,
+    speech_lit: bool,
 }
 
 impl Default for AdvancedView {
@@ -127,6 +133,114 @@ impl Default for AdvancedView {
 }
 
 impl AdvancedView {
+    /// The AI models at work, right-aligned on the voice profile row from
+    /// `min_x`: a lamp per model (lit while it acts), its name and what it
+    /// does now. Skipped when the row has no room for it.
+    fn paint_models(&mut self, p: &mut dyn Painter, state: &UiState, min_x: f32, y: f32, h: f32) {
+        let l = self.layout;
+        let m = &state.meters;
+        let label = sans(13.0, 400, th::MUTED);
+        let name = sans(13.0, 500, th::TEXT);
+        let live = mono(12.0, 400, th::ACCENT);
+        let idle = mono(12.0, 400, th::DIM);
+        let vad_running = state.voice_detector == app_core::DetectorState::Running;
+        let vad_detail = if vad_running {
+            let room = m
+                .room_db
+                .map_or("room: learning".to_string(), |r| format!("room {r:.0} dB"));
+            format!("speech {:>3.0}%  {room}", self.speech.value() * 100.0)
+        } else if matches!(state.voice_detector, app_core::DetectorState::Loading) {
+            "starting".to_string()
+        } else {
+            "unavailable".to_string()
+        };
+        let dfn_on = state.neural_denoise.is_some();
+        let dfn_detail = match (dfn_on, m.denoise_inference_ms) {
+            (true, Some(ms)) => format!("{ms:.2} ms / 10 ms"),
+            (true, None) => "starting".to_string(),
+            (false, _) => "off".to_string(),
+        };
+        let models = [
+            (
+                "Voice detection ",
+                "Silero VAD",
+                vad_detail,
+                vad_running && self.speech_lit,
+                vad_running,
+            ),
+            (
+                "Noise removal ",
+                "DeepFilterNet3",
+                dfn_detail,
+                dfn_on && m.denoise_inference_ms.is_some(),
+                dfn_on,
+            ),
+        ];
+        const LAMP: f32 = 8.0;
+        const GAP: f32 = 8.0;
+        const BETWEEN: f32 = 24.0;
+        // Full labels when they fit, else the model names alone.
+        let right = l.content_x + l.content_w;
+        let mut fit = None;
+        for with_labels in [true, false] {
+            let widths: Vec<f32> = models
+                .iter()
+                .map(|(lb, nm, dt, _, _)| {
+                    LAMP + GAP
+                        + if with_labels {
+                            p.measure_text(lb, &label).width
+                        } else {
+                            0.0
+                        }
+                        + p.measure_text(nm, &name).width
+                        + GAP
+                        + p.measure_text(dt, &live).width
+                })
+                .collect();
+            let total = widths.iter().sum::<f32>() + BETWEEN * (models.len() - 1) as f32;
+            if right - total >= min_x {
+                fit = Some((with_labels, widths, total));
+                break;
+            }
+        }
+        let Some((with_labels, widths, total)) = fit else {
+            self.models_rect = Rect::default();
+            return;
+        };
+        let mut x = right - total;
+        self.models_rect = Rect::new(x, y - 4.0, total, h + 8.0);
+        for ((lb, nm, dt, lit, on), w) in models.iter().zip(&widths) {
+            let cy = y + h / 2.0;
+            let fill = if *lit {
+                th::ACCENT
+            } else if *on {
+                th::ACCENT.with_alpha(0.25)
+            } else {
+                th::BORDER
+            };
+            p.fill_circle(x + LAMP / 2.0, cy, LAMP / 2.0, fill);
+            let mut tx = x + LAMP + GAP;
+            if with_labels {
+                p.text_in_rect(lb, Rect::new(tx, y, 400.0, h), &label, Align::Left);
+                tx += p.measure_text(lb, &label).width;
+            }
+            p.text_in_rect(
+                nm,
+                Rect::new(tx, y, 400.0, h),
+                &sans(13.0, 500, if *on { th::TEXT } else { th::DIM }),
+                Align::Left,
+            );
+            tx += p.measure_text(nm, &name).width + GAP;
+            p.text_in_rect(
+                dt,
+                Rect::new(tx, y, 400.0, h),
+                if *on { &live } else { &idle },
+                Align::Left,
+            );
+            x += w + BETWEEN;
+        }
+    }
+
     pub fn new() -> Self {
         let mut v = Self {
             clicker: Clicker::new(),
@@ -150,6 +264,10 @@ impl AdvancedView {
             header_hits: [Rect::default(); 5],
             input_rect: Rect::default(),
             output_rect: Rect::default(),
+            models_rect: Rect::default(),
+            speech: Smoother::new(0.0, 0.08),
+            speech_gate: dsp::voice::SpeechGate::default(),
+            speech_lit: false,
         };
         v.compute_layout(
             LayoutInputs {
@@ -580,6 +698,9 @@ fn write_profile(text: &mut String, state: &UiState) {
         &state.input_device
     };
     let _ = write!(text, "{profile} with {dev}");
+    if !state.calibrated {
+        text.push_str(" (not calibrated)");
+    }
 }
 
 /// `text` cut with an ellipsis to fit `max` wide in `style`.
@@ -799,6 +920,9 @@ impl View for AdvancedView {
         }
         self.true_peak.update(m.true_peak_db, dt);
         self.in_peak.update(m.in_peak_db, dt);
+        let prob = m.speech_probability.unwrap_or(0.0);
+        self.speech.update(prob, dt);
+        self.speech_lit = m.speech_probability.is_some() && self.speech_gate.update(prob);
         self.leveler_gain
             .update(-m.gain_reduction_db[Module::Leveler.index()], dt);
         if self.demo_spectrum {
@@ -1333,7 +1457,15 @@ impl View for AdvancedView {
         p.text_in_rect(
             &self.text,
             Rect::new(pr.x + pw, pr.y, pr.w, pr.h),
-            &s13,
+            &sans(
+                13.0,
+                400,
+                if state.calibrated {
+                    th::TEXT
+                } else {
+                    th::ACCENT
+                },
+            ),
             Align::Left,
         );
         // What the selected preset is for, after the profile.
@@ -1344,6 +1476,7 @@ impl View for AdvancedView {
             &muted13,
             Align::Left,
         );
+        self.paint_models(p, state, pr.x + pr.w + USE_FOR_GAP, pr.y, pr.h);
 
         // Spectrum curves.
         p.save();
@@ -1839,6 +1972,9 @@ impl View for AdvancedView {
 
     fn tooltip(&self, p: Point, state: &UiState) -> Option<String> {
         use crate::help;
+        if self.models_rect.contains(p) {
+            return Some(help::models(state));
+        }
         let id = self.hit(p)?;
         Some(match id {
             Id::Ab => help::ab(state),
@@ -1854,7 +1990,7 @@ impl View for AdvancedView {
             Id::Bypass => help::bypass(state),
             Id::Compact => help::compact(),
             Id::Preset(i) => help::preset(PresetId::ALL[i as usize], state),
-            Id::Recalibrate => help::calibrate(),
+            Id::Recalibrate => help::calibrate(state),
             Id::Input => help::device_input(state),
             Id::Output => help::device_output(state),
             Id::Module(i) => help::module(Module::ALL[i as usize], state),

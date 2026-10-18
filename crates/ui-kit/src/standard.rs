@@ -56,6 +56,12 @@ const VU_OUT: Rect = Rect::new(216.0, 88.0, 174.0, 113.1);
 const VU_LABEL_Y: f32 = 205.1;
 const VU_LABEL_H: f32 = 17.0;
 const PEAK_LAMP: Rect = Rect::new(192.0, 205.1, 12.0, 12.0);
+/// Voice lamp inside the input meter, lower left: lit while the voice
+/// detector hears speech.
+const VOICE_LAMP: Rect = Rect::new(41.0, 183.0, 8.0, 8.0);
+const VOICE_LABEL_X: f32 = 53.0;
+/// Hover area of the voice lamp and its label.
+const VOICE_HIT: Rect = Rect::new(36.0, 176.0, 52.0, 22.0);
 /// Microphone picker: the INPUT label row up to the peak lamp. Clicking it
 /// switches to the next microphone; the current one is shown after INPUT.
 const INPUT_PICK: Rect = Rect::new(30.0, 202.0, 156.0, 22.0);
@@ -136,6 +142,8 @@ pub struct StandardView {
     vu_in: VuBallistics,
     vu_out: VuBallistics,
     peak: PeakHold,
+    voice: dsp::voice::SpeechGate,
+    voice_lit: bool,
     gr: GrSmoother,
     lufs: Smoother,
     in_db: f32,
@@ -159,6 +167,8 @@ impl StandardView {
             vu_in: VuBallistics::new(),
             vu_out: VuBallistics::new(),
             peak: PeakHold::new(PEAK_LAMP_DBFS, 0.5),
+            voice: dsp::voice::SpeechGate::default(),
+            voice_lit: false,
             gr: GrSmoother::default(),
             lufs: Smoother::new(-24.0, 0.4),
             in_db: -60.0,
@@ -364,6 +374,7 @@ impl View for StandardView {
         self.in_db = self.vu_in.update(vu_in, dt);
         self.out_db = self.vu_out.update(vu_out, dt);
         self.peak.update(m.in_peak_db, dt);
+        self.voice_lit = m.speech_probability.is_some_and(|p| self.voice.update(p));
         self.gr.update(Self::total_gr_db(state), dt);
         // No loudness below the -70 LUFS gate (silence, muted): show --.-.
         self.lufs_valid = m.lufs_short_term.is_finite();
@@ -404,7 +415,7 @@ impl View for StandardView {
         knob::paint_body(p);
         p.restore();
         let small = TextStyle::new(Family::Oswald, 400, 11.0, th::INK).spacing(2.0);
-        p.text_in_rect("PHONES", MON_LABEL, &small, Align::Center);
+        p.text_in_rect("MONITOR", MON_LABEL, &small, Align::Center);
         p.text_in_rect("A / B", AB_LABEL, &small, Align::Center);
 
         p.fill_rect(Rect::new(30.0, RULE_Y, 360.0, 1.0), th::RULE);
@@ -489,6 +500,34 @@ impl View for StandardView {
                 th::LAMP_OFF
             },
             true,
+        );
+        lamp(
+            p,
+            VOICE_LAMP,
+            if self.voice_lit {
+                th::AMBER
+            } else {
+                th::LAMP_OFF
+            },
+            true,
+        );
+        let voice_style = TextStyle::new(
+            Family::Oswald,
+            400,
+            9.0,
+            if self.voice_lit {
+                th::INK
+            } else {
+                th::INK_SOFT
+            },
+        )
+        .spacing(1.5);
+        p.fill_text(
+            "VOICE",
+            VOICE_LABEL_X,
+            VOICE_LAMP.y - 2.5,
+            &voice_style,
+            Align::Left,
         );
         let mono11 = TextStyle::new(Family::PlexMono, 400, 11.0, th::INK_SOFT);
         self.text.clear();
@@ -717,7 +756,7 @@ impl View for StandardView {
             if mon {
                 let _ = write!(
                     self.text2,
-                    "MIC {:.1} · PH {:.1} ms",
+                    "MIC {:.1} · MON {:.1} ms",
                     state.mic_latency_ms, state.monitor_latency_ms
                 );
             } else {
@@ -765,6 +804,17 @@ impl View for StandardView {
         }
         let cal = TextStyle::new(Family::Oswald, 500, 12.0, cal_color).spacing(2.0);
         p.text_in_rect(&self.text2, CAL_LINK, &cal, Align::Right);
+        // Not calibrated yet: an amber lamp before the link asks for it.
+        if !state.calibrated && state.calibration.is_none() {
+            let w = p.measure_text(&self.text2, &cal).width;
+            let r = Rect::new(
+                CAL_LINK.x + CAL_LINK.w - w - 16.0,
+                CAL_LINK.y + (CAL_LINK.h - 8.0) / 2.0,
+                8.0,
+                8.0,
+            );
+            lamp(p, r, th::AMBER, true);
+        }
     }
 
     fn handle(&mut self, ev: Event, state: &UiState, out: &mut Vec<Action>) {
@@ -855,11 +905,13 @@ impl View for StandardView {
                 Id::Knob => help::intensity(state),
                 Id::Ab => help::ab(state),
                 Id::Advanced => help::advanced(),
-                Id::Calibrate => help::calibrate(),
+                Id::Calibrate => help::calibrate(state),
                 Id::Input => help::device_input(state),
             });
         }
-        if VU_IN.contains(p) {
+        if VOICE_HIT.contains(p) {
+            Some(help::models(state))
+        } else if VU_IN.contains(p) {
             Some(help::vu_input())
         } else if VU_OUT.contains(p) {
             Some(help::vu_output(state))

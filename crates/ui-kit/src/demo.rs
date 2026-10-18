@@ -1,7 +1,7 @@
 //! Deterministic state for screenshots and tests: the numbers shown in the
 //! design sources.
 
-use app_core::{DenoiseLevel, ModelState, PresetId, UiState};
+use app_core::{DenoiseLevel, DetectorState, ModelState, PresetId, UiState};
 use dsp::ChainSettings;
 use engine::{MeterFrame, MonitorConfig};
 
@@ -38,11 +38,13 @@ pub fn demo_state() -> UiState {
         virtual_device: "Voice Strip".into(),
         chain,
         voice_profile: "Default".into(),
+        calibrated: true,
         cpu_percent: 3.1,
         calibration: None,
         notice: None,
         model: ModelState::Ready,
         model_prompt: None,
+        voice_detector: DetectorState::Running,
     }
 }
 
@@ -59,5 +61,9 @@ pub fn demo_meters() -> MeterFrame {
         true_peak_db: -1.2,
         gain_reduction_db: [0.0, 18.0, 2.1, 3.4, 2.6, 4.5, 0.4, -1.2, 0.8],
         denoise_missed_frames: 0,
+        speech_probability: Some(0.94),
+        room_db: Some(-52.0),
+        vad_inference_ms: Some(0.04),
+        denoise_inference_ms: Some(0.13),
     }
 }

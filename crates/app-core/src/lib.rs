@@ -5,10 +5,11 @@
 pub mod calibration;
 pub mod controller;
 pub mod presets;
+pub mod profiles;
 pub mod remote;
 pub mod tuning;
 
-pub use controller::{CalibrationStatus, Controller, ModelState, ModelUse, UiState};
+pub use controller::{CalibrationStatus, Controller, DetectorState, ModelState, ModelUse, UiState};
 pub use denoise_neural::model;
 pub use presets::{DenoiseLevel, Preset, PresetId};
 pub use tuning::{CharacterLevels, VoiceProfile, character_levels, settings_for};

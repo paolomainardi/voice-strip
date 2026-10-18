@@ -9,6 +9,7 @@ members = [
     "crates/app-core",
     "crates/ui-kit",
     "crates/denoise-neural",
+    "crates/vad",
     "crates/app",
 ]
 
@@ -27,6 +28,7 @@ vdev-macos = { path = "crates/vdev-macos" }
 vdev-macos-driver = { path = "crates/vdev-macos-driver" }
 rtrb = "0.3"
 denoise-neural = { path = "crates/denoise-neural" }
+vad = { path = "crates/vad" }
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }

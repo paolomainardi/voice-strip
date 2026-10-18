@@ -17,6 +17,7 @@ The specification is [docs/HANDOFF.md](docs/HANDOFF.md). When in doubt, it wins.
 | Crate | Role |
 |---|---|
 | `crates/dsp` | Pure processing chain. No I/O, no threads, testable on files |
+| `crates/vad` | Voice detection: Silero VAD on a worker thread, exposed to the engine as `dsp::VoiceDetector`; `build.rs` fetches, checks and embeds the model |
 | `crates/engine` | Realtime core: lock-free channels, audio-thread processor, `AudioBackend` trait, simulated backend |
 | `crates/vdev-linux` | PipeWire backend: captures the microphone, exposes the virtual source |
 | `crates/vdev-macos-driver` | macOS virtual microphone: AudioServerPlugIn loaded by `coreaudiod`, built and signed by `scripts/macos-driver.sh` |
@@ -120,7 +121,7 @@ curl -s "https://crates.io/api/v1/crates/<crate>" | jq '{max_stable: .crate.max_
 5. **Always regenerate the lockfile** after changing dependency manifests.
 
 6. Voice Strip is MIT OR Apache-2.0. Dependencies must allow that: prefer MIT, Apache-2.0, BSD, Zlib; copyleft-only licences (GPL, LGPL, MPL without a permissive alternative) need an explicit decision. Record bundled or downloaded third-party material in `THIRD-PARTY.md`.
-7. Do not vendor code or models. Large assets are downloaded at runtime and verified by checksum, as the noise removal model is (`crates/denoise-neural/src/model.rs`).
+7. Do not vendor code or models. Large assets are downloaded at runtime and verified by checksum, as the noise removal model is (`crates/denoise-neural/src/model.rs`). The one exception is the Silero VAD model (2.8 MB, MIT): it is not stored in the repository, but `crates/vad/build.rs` fetches it at a pinned commit, checks its SHA-256 and embeds it in the binary, so voice detection is always available (owner decision, issue #17).
 8. tract 0.23.9 is an explicit, owner-approved exception to the 5-day rule (it was 3 days old when adopted). The DeepFilterNet fork is maintained as described in `docs/denoise.md`.
 
 ## Testing

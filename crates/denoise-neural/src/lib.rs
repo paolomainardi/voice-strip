@@ -16,7 +16,7 @@ pub mod rt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use df::tract::{DfParams, DfTract, RuntimeParams};
 use ndarray::Array2;
@@ -42,6 +42,8 @@ impl std::error::Error for InitError {}
 struct Shared {
     stop: AtomicBool,
     atten_lim_db: AtomicU32,
+    /// Average run time per frame, ms, f32 bits; NaN before the first.
+    inference_ms: AtomicU32,
 }
 
 struct Worker {
@@ -88,6 +90,7 @@ impl DfnDenoiser {
         let shared = Arc::new(Shared {
             stop: AtomicBool::new(false),
             atten_lim_db: AtomicU32::new(100f32.to_bits()),
+            inference_ms: AtomicU32::new(f32::NAN.to_bits()),
         });
         let (tx, rx) = std::sync::mpsc::channel::<Result<AudioSide, String>>();
         let worker_shared = shared.clone();
@@ -159,6 +162,7 @@ fn run(
     let mut enh = Array2::<f32>::zeros((1, hop));
     let mut prev = Array2::<f32>::zeros((1, hop));
     let mut atten = f32::NAN;
+    let mut avg_ms = f32::NAN;
     while !shared.stop.load(Ordering::Relaxed) {
         if input.slots() < hop {
             std::thread::park_timeout(PARK_TIMEOUT);
@@ -179,9 +183,19 @@ fn run(
         // On a model error deliver the input delayed by the model latency
         // (exactly one hop for this model), so the fallback stays aligned
         // with the dry path instead of muting or doubling the voice.
+        let t = Instant::now();
         if model.process(noisy.view(), enh.view_mut()).is_err() {
             enh.assign(&prev);
         }
+        let ms = t.elapsed().as_secs_f32() * 1000.0;
+        avg_ms = if avg_ms.is_nan() {
+            ms
+        } else {
+            avg_ms + (ms - avg_ms) * 0.02
+        };
+        shared
+            .inference_ms
+            .store(avg_ms.to_bits(), Ordering::Relaxed);
         prev.assign(&noisy);
         // Never drop a result: if the audio side has not fetched yet, wait
         // for room (dropping would desynchronise the frame count).
@@ -236,6 +250,11 @@ impl dsp::FrameDenoiser for DfnDenoiser {
 
     fn max_in_flight(&self) -> usize {
         QUEUE_FRAMES
+    }
+
+    fn inference_ms(&self) -> Option<f32> {
+        let v = f32::from_bits(self.shared.inference_ms.load(Ordering::Relaxed));
+        (!v.is_nan()).then_some(v)
     }
 
     fn set_attenuation_limit_db(&mut self, db: f32) {

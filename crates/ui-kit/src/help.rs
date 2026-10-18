@@ -2,7 +2,7 @@
 //! changes, in plain words.
 
 use app_core::presets::builtin;
-use app_core::{DenoiseLevel, ModelState, PresetId, UiState};
+use app_core::{DenoiseLevel, DetectorState, ModelState, PresetId, UiState};
 use dsp::Module;
 
 pub fn on_switch(state: &UiState) -> String {
@@ -145,10 +145,15 @@ pub fn monitor_denoise() -> String {
         .into()
 }
 
-pub fn calibrate() -> String {
-    "Calibrate (15 s): stay quiet for 5 s, then speak normally for 10 s. Sets your input \
-     level, noise floor and de-esser frequency for this microphone."
-        .into()
+pub fn calibrate(state: &UiState) -> String {
+    let how = "Calibrate (15 s): stay quiet for 5 s, then speak normally for 10 s. Sets your \
+               input level, de-esser frequency and EQ for this microphone; the room noise is \
+               learned on its own.";
+    if state.calibrated {
+        how.into()
+    } else {
+        format!("Not calibrated yet: the presets assume an average microphone level. {how}")
+    }
 }
 
 pub fn advanced() -> String {
@@ -157,6 +162,36 @@ pub fn advanced() -> String {
 
 pub fn compact() -> String {
     "Back to the compact view.".into()
+}
+
+/// The voice lamp and the models line: what each AI model does now.
+pub fn models(state: &UiState) -> String {
+    let vad = match &state.voice_detector {
+        DetectorState::Running => {
+            let room = state
+                .meters
+                .room_db
+                .map_or("still learning your room".to_string(), |r| {
+                    format!("your room sits at {r:.0} dBFS")
+                });
+            format!(
+                "Voice detection (Silero VAD) listens for speech every 32 ms. While you are \
+                 silent it measures the room, and pauses are turned down just above it: {room}. \
+                 Loudness is measured only while you speak. It never cuts your voice."
+            )
+        }
+        DetectorState::Loading => "Voice detection (Silero VAD) is starting.".into(),
+        DetectorState::Failed(e) => format!(
+            "Voice detection (Silero VAD) could not start ({e}); pauses use the calibrated \
+             noise floor."
+        ),
+    };
+    let dfn = if state.neural_denoise.is_some() {
+        "Noise removal (DeepFilterNet3) cleans every 10 ms of your voice."
+    } else {
+        "Noise removal (DeepFilterNet3) is off."
+    };
+    format!("{vad}\n\n{dfn}")
 }
 
 pub fn vu_input() -> String {
