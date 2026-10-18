@@ -229,7 +229,7 @@ checksum = "fb5dfbc6d8d2675589ccbe4d0fd61df2419075625f8c1a62325e718e2b0049f9"
 
 [[package]]
 name = "app"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "app-core",
  "dsp",
@@ -248,7 +248,7 @@ dependencies = [
 
 [[package]]
 name = "app-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "denoise-neural",
  "dsp",
@@ -1064,7 +1064,7 @@ dependencies = [
 
 [[package]]
 name = "denoise-neural"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "assert_no_alloc",
  "deep_filter",
@@ -1175,7 +1175,7 @@ checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
 name = "dsp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "assert_no_alloc",
  "ebur128",
@@ -1350,7 +1350,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "engine"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "assert_no_alloc",
  "dsp",
@@ -4485,7 +4485,7 @@ dependencies = [
 
 [[package]]
 name = "ui-kit"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "app-core",
  "assert_no_alloc",
@@ -4549,7 +4549,7 @@ dependencies = [
 
 [[package]]
 name = "vdev-linux"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "app-core",
  "ctrlc",
@@ -4562,7 +4562,7 @@ dependencies = [
 
 [[package]]
 name = "vdev-macos"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "assert_no_alloc",
  "dsp",
@@ -4574,7 +4574,7 @@ dependencies = [
 
 [[package]]
 name = "vdev-macos-driver"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "libc",
 ]
