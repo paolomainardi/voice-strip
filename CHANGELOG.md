@@ -4,6 +4,10 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- A weekly CI check that fails when tract or upstream DeepFilterNet has a release to review.
+
 ### Changed
 
 - Noise removal runs on tract 0.23.9 instead of 0.19, with 10 to 19% faster inference and the same output.
