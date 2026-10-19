@@ -72,6 +72,10 @@ jobs:
           codesign --verify --strict "dist/$name/VoiceStrip.driver"
           cp README.md CHANGELOG.md THIRD-PARTY.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
+          # The packaged app finds the driver next to it, with its revision.
+          status=$("dist/$name/voice-strip" driver status || true)
+          echo "$status"
+          grep -q '^shipped: .*(revision ' <<<"$status"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: macos

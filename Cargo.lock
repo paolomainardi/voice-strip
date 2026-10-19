@@ -244,6 +244,7 @@ dependencies = [
  "ui-kit",
  "vdev-linux",
  "vdev-macos",
+ "vdev-macos-driver",
 ]
 
 [[package]]

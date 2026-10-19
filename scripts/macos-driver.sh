@@ -2,6 +2,13 @@
 # Builds target/VoiceStrip.driver, the macOS virtual microphone bundle, and
 # signs it. macOS only.
 #
+# The bundle's Info.plist gets the release version and
+# VoiceStripDriverRevision, a hash of what the driver is built from (its
+# sources, Info.plist, its resolved dependencies and the manifests without
+# their version lines), so
+# `voice-strip driver install --if-needed` replaces an installed driver only
+# when its code changed.
+#
 # Without VOICE_STRIP_SIGN_IDENTITY the bundle is ad-hoc signed, which
 # coreaudiod loads on a development machine. With it, the bundle is signed
 # with that identity (for example "Developer ID Application: Name (TEAMID)"),
@@ -32,6 +39,21 @@ rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS"
 cp crates/vdev-macos-driver/Info.plist "$BUNDLE/Contents/Info.plist"
 cp target/release/libvdev_macos_driver.dylib "$BUNDLE/Contents/MacOS/VoiceStrip"
+
+version=$(sed -n 's/^version = "\(.*\)"$/\1/p' crates/vdev-macos-driver/Cargo.toml | head -n 1)
+revision=$(
+  {
+    find crates/vdev-macos-driver/src -type f -name '*.rs' | LC_ALL=C sort | xargs cat
+    cat crates/vdev-macos-driver/Info.plist
+    grep -v '^version = ' crates/vdev-macos-driver/Cargo.toml
+    grep -v '^version = ' Cargo.toml
+    # Dependencies as Cargo.lock resolves them, without the driver's own line.
+    cargo tree --locked -p vdev-macos-driver -e normal,build --prefix none | sed 1d | LC_ALL=C sort -u
+  } | shasum -a 256 | cut -c1-16
+)
+plist="$BUNDLE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$plist"
+/usr/libexec/PlistBuddy -c "Add :VoiceStripDriverRevision string $revision" "$plist"
 
 identity=${VOICE_STRIP_SIGN_IDENTITY:-}
 if [[ -z $identity ]]; then

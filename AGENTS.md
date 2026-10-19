@@ -42,7 +42,7 @@ just start      # Run the app in the background
 
 Run `just` to list all recipes.
 
-On macOS: the Xcode Command Line Tools, Rust and `just`; `just macos-driver` and `just macos-driver-install` build and install the virtual microphone driver (see the README). Tests that capture audio need the microphone permission and run from Terminal, or through `scripts/macos-gui-run.sh` from SSH.
+On macOS: the Xcode Command Line Tools, Rust and `just`; `just macos-driver` builds the virtual microphone driver and `just macos-driver-install` installs it through `voice-strip driver install` (see the README). Tests that capture audio need the microphone permission and run from Terminal, or through `scripts/macos-gui-run.sh` from SSH.
 
 ## Key Conventions
 

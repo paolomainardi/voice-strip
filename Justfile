@@ -92,16 +92,8 @@ upgrade:
     fi
     current=$(git describe --tags --always)
     echo "upgrade: $current -> $latest"
-    # The driver changed when its code, bundle or build scripts did; the
-    # version bump every release makes in its Cargo.toml does not count.
-    driver_changed=$(cat "$pending" 2>/dev/null || echo 0)
-    git diff --quiet HEAD "$latest" -- crates/vdev-macos-driver/src crates/vdev-macos-driver/Info.plist \
-        scripts/macos-driver.sh scripts/macos-driver-install.sh || driver_changed=1
-    if git diff HEAD "$latest" -- crates/vdev-macos-driver/Cargo.toml Cargo.toml | grep '^[-+][^-+]' | grep -qv '^[-+]version = '; then
-        driver_changed=1
-    fi
     mkdir -p target
-    echo "$driver_changed" > "$pending"
+    touch "$pending"
     # Restart a running app with the arguments it was started with.
     running=0
     args=""
@@ -114,17 +106,23 @@ upgrade:
     fi
     git -c advice.detachedHead=false checkout --quiet "$latest"
     cargo build --release -p app
-    if [ "$(uname -s)" = Darwin ] && [ "$driver_changed" = 1 ]; then
-        echo "upgrade: the driver changed; installing it (asks for sudo, audio stops for a moment)"
+    driver=ok
+    if [ "$(uname -s)" = Darwin ]; then
+        # Replaces the installed driver only when its revision changed.
         just macos-driver
-        just macos-driver-install
+        "{{bin}}" driver install --if-needed || driver=failed
     fi
-    rm -f "$pending"
+    # The app comes back even when the driver install failed.
     if [ "$running" = 1 ]; then
         set -f # the saved arguments are words; no globbing
         # shellcheck disable=SC2086
         just start $args
     fi
+    if [ "$driver" = failed ]; then
+        echo "upgrade: now on $latest, but the driver is not installed; run: just upgrade" >&2
+        exit 1
+    fi
+    rm -f "$pending"
     echo "upgrade: now on $latest"
 
 # Start the app in the background in the advanced view; arguments go to voice-strip
@@ -177,6 +175,7 @@ status:
         echo "virtual mic: Voice Strip (driver loaded)"
     else
         echo "virtual mic: VoiceStrip.driver not loaded (just macos-driver && just macos-driver-install)"
+        "{{bin}}" driver status | sed 's/^/  /' || true
     fi
     pgrep -x voice-strip >/dev/null && "{{bin}}" ctl status | head -c 200 && echo || true
 
@@ -215,11 +214,11 @@ omarchy-plugin:
 macos-driver:
     scripts/macos-driver.sh
 
-# Install target/VoiceStrip.driver and restart coreaudiod (sudo; --uninstall removes it)
+# Install target/VoiceStrip.driver and restart coreaudiod, through `voice-strip driver install` (asks for your password)
 [group('macos')]
 [macos]
-macos-driver-install *args:
-    scripts/macos-driver-install.sh "$@"
+macos-driver-install: build
+    "{{bin}}" driver install
 
 # Check the installed driver from a client: the shared ring arrives intact at the reported latency (desktop session only)
 [group('macos')]
