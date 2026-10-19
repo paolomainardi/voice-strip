@@ -156,26 +156,16 @@ impl WorkInterval {
     pub fn join(name: &std::ffi::CStr, deadline: std::time::Duration) -> Self {
         #[cfg(target_os = "macos")]
         {
-            Self {
-                imp: mac::Interval::join(name, deadline),
+            let imp = mac::Interval::join(name, deadline);
+            if imp.is_none() {
+                eprintln!("voice-strip: no work interval for {name:?}; the worker may not keep up");
             }
+            Self { imp }
         }
         #[cfg(not(target_os = "macos"))]
         {
             let _ = (name, deadline);
             Self {}
-        }
-    }
-
-    /// Whether the thread joined an interval.
-    pub fn joined(&self) -> bool {
-        #[cfg(target_os = "macos")]
-        {
-            self.imp.is_some()
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            false
         }
     }
 
@@ -240,6 +230,9 @@ mod mac {
     pub struct Interval {
         wg: *mut c_void,
         token: Box<Token>,
+        /// Whether the current frame's interval started, so `finish` pairs
+        /// with it.
+        started: std::cell::Cell<bool>,
         /// The deadline in mach ticks.
         ticks: u64,
     }
@@ -266,18 +259,28 @@ mod mac {
                 return None;
             }
             let ticks = (deadline.as_secs_f64() * 1e3 * ticks_per_ms()) as u64;
-            Some(Self { wg, token, ticks })
+            Some(Self {
+                wg,
+                token,
+                started: std::cell::Cell::new(false),
+                ticks,
+            })
         }
 
         pub fn start(&self) {
             // SAFETY: a workgroup this thread joined; null data is allowed.
-            unsafe {
+            let ok = unsafe {
                 let now = mach_absolute_time();
-                os_workgroup_interval_start(self.wg, now, now + self.ticks, std::ptr::null_mut());
-            }
+                os_workgroup_interval_start(self.wg, now, now + self.ticks, std::ptr::null_mut())
+                    == 0
+            };
+            self.started.set(ok);
         }
 
         pub fn finish(&self) {
+            if !self.started.replace(false) {
+                return;
+            }
             // SAFETY: as in `start`.
             unsafe { os_workgroup_interval_finish(self.wg, std::ptr::null_mut()) };
         }
