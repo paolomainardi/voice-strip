@@ -18,7 +18,9 @@ pub enum TrayCmd {
     SetMuted(bool),
     SetPreset(PresetId),
     SetNoise(Option<app_core::DenoiseLevel>),
-    Show,
+    /// The window item and a click on the icon: hides the window when it
+    /// is shown, shows it otherwise.
+    ToggleWindow,
     Quit,
 }
 
@@ -29,15 +31,27 @@ pub struct TrayState {
     pub muted: bool,
     pub preset: PresetId,
     pub noise: Option<app_core::DenoiseLevel>,
+    /// Whether the window is shown.
+    pub window: bool,
 }
 
 impl TrayState {
-    pub fn of(st: &app_core::UiState) -> Self {
+    pub fn of(st: &app_core::UiState, window: bool) -> Self {
         Self {
             on: st.on,
             muted: st.muted,
             preset: st.preset,
             noise: st.neural_denoise,
+            window,
+        }
+    }
+
+    /// Label of the window item.
+    pub fn window_label(&self) -> &'static str {
+        if self.window {
+            "Hide window"
+        } else {
+            "Show window"
         }
     }
 }
@@ -100,7 +114,7 @@ impl ksni::Tray for VoiceStripTray {
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {
-        let _ = self.tx.send(TrayCmd::Show);
+        let _ = self.tx.send(TrayCmd::ToggleWindow);
     }
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
@@ -188,9 +202,9 @@ impl ksni::Tray for VoiceStripTray {
             .into(),
             MenuItem::Separator,
             StandardItem {
-                label: "Show window".into(),
+                label: self.state.window_label().into(),
                 activate: Box::new(|t: &mut Self| {
-                    let _ = t.tx.send(TrayCmd::Show);
+                    let _ = t.tx.send(TrayCmd::ToggleWindow);
                 }),
                 ..Default::default()
             }

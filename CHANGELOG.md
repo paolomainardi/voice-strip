@@ -6,7 +6,13 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ### Added
 
+- Cmd+W on macOS and Ctrl+W on Linux hide the window while the app keeps running.
+- `voice-strip ctl hide` hides the window.
 - `voice-strip ctl status` reports the noise removal and voice detection run times and the frames noise removal missed.
+
+### Changed
+
+- The Show window item in the tray and menu bar, and a click on the Linux tray icon, toggle the window; the item reads Hide window while it is shown.
 
 ### Fixed
 

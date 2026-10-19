@@ -23,6 +23,7 @@ const USAGE: &str = "usage: voice-strip ctl <command>
   phones on | off | toggle    headphone monitor
   model download              download the noise removal model (34.7 MB)
   show                        open the window (starts the app if closed)
+  hide                        hide the window; the app keeps running
   start                       start the app without its window if closed
   quit
 

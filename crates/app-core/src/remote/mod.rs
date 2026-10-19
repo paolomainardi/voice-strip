@@ -57,6 +57,7 @@ pub enum Command {
     TogglePhones,
     DownloadModel,
     Show,
+    Hide,
     Start,
     Quit,
 }
@@ -117,6 +118,7 @@ impl Command {
                 a => Err(format!("model takes download, got {a}")),
             },
             "show" => none(Command::Show),
+            "hide" => none(Command::Hide),
             "start" => none(Command::Start),
             "quit" => none(Command::Quit),
             "" => Err("empty command".into()),
@@ -131,6 +133,8 @@ pub enum Effect {
     None,
     /// Bring the window to the front.
     Show,
+    /// Hide the window; the app keeps running in the background.
+    Hide,
     Quit,
 }
 
@@ -166,6 +170,7 @@ pub fn apply(controller: &mut Controller, command: Command) -> Result<Effect, St
             set_phones(controller, on);
         }
         Command::Show => return Ok(Effect::Show),
+        Command::Hide => return Ok(Effect::Hide),
         Command::Quit => return Ok(Effect::Quit),
     }
     Ok(Effect::None)
@@ -430,6 +435,7 @@ mod tests {
         apply(&mut c, Command::SetPhones(false)).unwrap();
         assert!(!c.state().monitor.enabled);
         assert_eq!(apply(&mut c, Command::Show), Ok(Effect::Show));
+        assert_eq!(apply(&mut c, Command::Hide), Ok(Effect::Hide));
         assert_eq!(apply(&mut c, Command::Quit), Ok(Effect::Quit));
     }
 
@@ -475,6 +481,7 @@ mod tests {
             ("phones toggle", C::TogglePhones),
             ("model download", C::DownloadModel),
             ("show", C::Show),
+            ("hide", C::Hide),
             ("start", C::Start),
             ("quit", C::Quit),
         ];
