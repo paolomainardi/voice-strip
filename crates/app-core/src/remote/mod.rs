@@ -57,6 +57,7 @@ pub enum Command {
     TogglePhones,
     DownloadModel,
     Show,
+    Hide,
     Start,
     Quit,
 }
@@ -117,6 +118,7 @@ impl Command {
                 a => Err(format!("model takes download, got {a}")),
             },
             "show" => none(Command::Show),
+            "hide" => none(Command::Hide),
             "start" => none(Command::Start),
             "quit" => none(Command::Quit),
             "" => Err("empty command".into()),
@@ -131,6 +133,8 @@ pub enum Effect {
     None,
     /// Bring the window to the front.
     Show,
+    /// Hide the window; the app keeps running in the background.
+    Hide,
     Quit,
 }
 
@@ -166,6 +170,7 @@ pub fn apply(controller: &mut Controller, command: Command) -> Result<Effect, St
             set_phones(controller, on);
         }
         Command::Show => return Ok(Effect::Show),
+        Command::Hide => return Ok(Effect::Hide),
         Command::Quit => return Ok(Effect::Quit),
     }
     Ok(Effect::None)
@@ -292,6 +297,11 @@ pub fn state_json(st: &UiState, extras: Extras) -> String {
     opt(&mut s, st.meters.speech_probability);
     s.push_str(",\"room_db\":");
     opt(&mut s, st.meters.room_db);
+    s.push_str(",\"denoise_ms\":");
+    opt(&mut s, st.meters.denoise_inference_ms);
+    let _ = write!(s, ",\"denoise_missed\":{}", st.meters.denoise_missed_frames);
+    s.push_str(",\"vad_ms\":");
+    opt(&mut s, st.meters.vad_inference_ms);
     let _ = write!(s, ",\"intensity\":{}", st.intensity);
     let _ = write!(s, ",\"phones\":{}", st.monitor.enabled);
     s.push_str(",\"input\":");
@@ -425,6 +435,7 @@ mod tests {
         apply(&mut c, Command::SetPhones(false)).unwrap();
         assert!(!c.state().monitor.enabled);
         assert_eq!(apply(&mut c, Command::Show), Ok(Effect::Show));
+        assert_eq!(apply(&mut c, Command::Hide), Ok(Effect::Hide));
         assert_eq!(apply(&mut c, Command::Quit), Ok(Effect::Quit));
     }
 
@@ -470,6 +481,7 @@ mod tests {
             ("phones toggle", C::TogglePhones),
             ("model download", C::DownloadModel),
             ("show", C::Show),
+            ("hide", C::Hide),
             ("start", C::Start),
             ("quit", C::Quit),
         ];
