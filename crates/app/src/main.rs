@@ -747,6 +747,7 @@ impl eframe::App for VoiceStrip {
                 view: self.active as u8,
                 view_key: view.static_key(),
                 size: (size.0.to_bits(), size.1.to_bits()),
+                screen: (screen.width().to_bits(), screen.height().to_bits()),
                 scale: self.scale.to_bits(),
                 pixels_per_point: ctx.pixels_per_point().to_bits(),
             };
@@ -1172,6 +1173,9 @@ struct StaticKey {
     view: u8,
     view_key: u64,
     size: (u32, u32),
+    /// The window's area: the layer's shapes are clipped to it, and after a
+    /// view change the window reaches the new size a frame or more later.
+    screen: (u32, u32),
     scale: u32,
     pixels_per_point: u32,
 }
