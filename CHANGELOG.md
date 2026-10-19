@@ -13,6 +13,7 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 ### Fixed
 
 - A notice in the standard view footer no longer runs over CALIBRATE.
+- After a restart, remote control could stay unreachable while the old instance was still exiting; the app now takes the control socket over once it is free, and `just stop` waits for the app to exit.
 
 ## [0.3.1] - 2026-10-19
 

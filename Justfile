@@ -131,7 +131,11 @@ sim *args: build
 # Stop the running app
 [group('app')]
 stop:
-    @pkill -x voice-strip && echo "stopped" || echo "not running"
+    #!/usr/bin/env bash
+    if ! pkill -x voice-strip; then echo "not running"; exit 0; fi
+    # Wait for it to exit, so a start right after finds the control socket free.
+    for _ in $(seq 1 50); do pgrep -x voice-strip >/dev/null || { echo "stopped"; exit 0; }; sleep 0.1; done
+    echo "still stopping after 5 s" >&2
 
 # Restart the app in the background; arguments go to voice-strip
 [group('app')]

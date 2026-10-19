@@ -17,9 +17,10 @@ pub struct Remote {
 }
 
 impl Remote {
-    /// Listens on the control socket; `None` (with a message) when another
-    /// Voice Strip already listens or there is no runtime folder.
-    pub fn start() -> Option<Self> {
+    /// Listens on the control socket; `None` when another Voice Strip
+    /// already listens or there is no runtime folder, with a message unless
+    /// `quiet` (retries).
+    pub fn start(quiet: bool) -> Option<Self> {
         match Server::start() {
             Ok(server) => Some(Self {
                 server,
@@ -29,7 +30,9 @@ impl Remote {
                 since_publish: 0.0,
             }),
             Err(e) => {
-                eprintln!("voice-strip: no remote control ({e})");
+                if !quiet {
+                    eprintln!("voice-strip: no remote control ({e}); retrying");
+                }
                 None
             }
         }

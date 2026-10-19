@@ -185,6 +185,10 @@ struct VoiceStrip {
     #[cfg(target_os = "macos")]
     menubar: Option<menubar::MenuBar>,
     remote: Option<remote::Remote>,
+    /// Last attempt to take the control socket while another instance held
+    /// it: one that is still exiting (a restart) frees it a moment later.
+    /// `None` never retries (screenshots).
+    remote_retry: Option<Instant>,
     /// Last run of [`VoiceStrip::service`].
     last_service: Instant,
     /// Quit was asked for (tray, remote control): closing the window ends
@@ -582,6 +586,13 @@ impl VoiceStrip {
         let mut effect = self.tray();
         #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         let mut effect = Effect::None;
+        if self.remote.is_none()
+            && let Some(t) = self.remote_retry
+            && t.elapsed() >= std::time::Duration::from_secs(1)
+        {
+            self.remote_retry = Some(Instant::now());
+            self.remote = remote::Remote::start(true);
+        }
         if let Some(r) = &mut self.remote {
             let e = r.frame(&mut self.controller, dt);
             // A quit from the tray or remote control always wins.
@@ -914,8 +925,9 @@ fn main() -> eframe::Result<()> {
     let remote = if screenshot {
         None
     } else {
-        remote::Remote::start()
+        remote::Remote::start(false)
     };
+    let remote_retry = (!screenshot).then(Instant::now);
     // The app lives outside the window: closing the window leaves the
     // processing, the tray and remote control running, and `show` (tray,
     // `voice-strip ctl show`) opens it again. Quit ends everything.
@@ -946,6 +958,7 @@ fn main() -> eframe::Result<()> {
         #[cfg(target_os = "macos")]
         menubar,
         remote,
+        remote_retry,
         last_service: Instant::now(),
         quit: false,
         window_open: false,
