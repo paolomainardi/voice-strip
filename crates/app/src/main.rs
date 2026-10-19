@@ -775,7 +775,11 @@ impl eframe::App for VoiceStrip {
         self.device_menu(ctx);
         self.tooltip(ctx);
         self.screenshot(ctx);
-        ctx.request_repaint();
+        // Frames are paced by `repaint_period` (in `logic`); a screenshot
+        // needs a few frames in a row.
+        if self.shot.is_some() {
+            ctx.request_repaint();
+        }
     }
 }
 

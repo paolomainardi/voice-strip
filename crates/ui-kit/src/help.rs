@@ -6,7 +6,11 @@ use app_core::{DenoiseLevel, DetectorState, ModelState, PresetId, UiState};
 use dsp::Module;
 
 pub fn on_switch(state: &UiState) -> String {
-    if state.on {
+    if state.on && state.standby {
+        "Standby: no application uses the Voice Strip microphone, so your microphone is \
+         released. Processing starts again as soon as one opens it. Click to bypass."
+            .into()
+    } else if state.on {
         "Processing is on. Click to bypass: your microphone goes out unprocessed.".into()
     } else {
         "Processing is bypassed. Click to turn the voice chain back on.".into()

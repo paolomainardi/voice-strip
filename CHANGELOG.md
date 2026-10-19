@@ -9,7 +9,7 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - `just upgrade` moves a clone to the latest release, rebuilds, reinstalls the macOS driver only when it changed, and restarts the app.
 - The app shows when a newer release exists, in both views and the tray or menu bar, checking GitHub once a day.
 - `voice-strip ctl updates on|off` turns the update check on or off, and `ctl status` reports it.
-- Standby: 5 s after the last application stops using the Voice Strip microphone, the physical microphone is released and nothing is processed; it comes back when an application opens Voice Strip, the monitor is on or you calibrate. The window shows STANDBY and `ctl status` reports `capture`.
+- Standby: 5 s after the last application stops using the Voice Strip microphone, the physical microphone is released and nothing is processed; it comes back when an application opens Voice Strip, the monitor is on or you calibrate. The ON button reads STANDBY and `ctl status` reports `capture`.
 
 ### Fixed
 
