@@ -4,6 +4,10 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Releases include a macOS arm64 build of the app and its driver.
+
 ## [0.4.0] - 2026-10-19
 
 ### Added

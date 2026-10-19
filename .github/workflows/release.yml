@@ -1,10 +1,14 @@
 name: release
 
-# Pushing a vX.Y.Z tag builds the Linux binary and drafts a GitHub release
-# with the matching CHANGELOG.md section. Review the draft, then publish it.
+# Pushing a vX.Y.Z tag builds the Linux and macOS binaries and drafts a
+# GitHub release with the matching CHANGELOG.md section. Review the draft,
+# then publish it. A pull request that changes this workflow runs the builds
+# only, without a release.
 on:
   push:
     tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  pull_request:
+    paths: [.github/workflows/release.yml, scripts/macos-driver.sh]
 
 permissions:
   contents: read
@@ -27,7 +31,7 @@ jobs:
       - run: cargo build --release --locked -p app
       - name: Package
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
         run: |
           name="voice-strip-${TAG}-linux-x86_64"
           mkdir -p "dist/$name"
@@ -41,8 +45,42 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  macos:
+    name: macos arm64
+    runs-on: macos-15
+    env:
+      # The driver's Info.plist asks for macOS 13 too.
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-09
+        with:
+          toolchain: stable
+      - run: cargo build --release --locked -p app
+      # Ad-hoc signed: no signing identity.
+      - run: scripts/macos-driver.sh
+      - name: Package
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+        run: |
+          name="voice-strip-${TAG}-macos-arm64"
+          mkdir -p "dist/$name"
+          cp target/release/voice-strip "dist/$name/"
+          strip "dist/$name/voice-strip"
+          codesign --force --sign - "dist/$name/voice-strip"
+          cp -R target/VoiceStrip.driver "dist/$name/"
+          codesign --verify --strict "dist/$name/VoiceStrip.driver"
+          cp README.md CHANGELOG.md THIRD-PARTY.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: macos
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
   release:
-    needs: linux
+    if: github.ref_type == 'tag'
+    needs: [linux, macos]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -50,8 +88,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: linux
           path: dist
+          merge-multiple: true
       - name: Draft the release
         env:
           GH_TOKEN: ${{ github.token }}
