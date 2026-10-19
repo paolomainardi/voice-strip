@@ -190,6 +190,8 @@ struct VoiceStrip {
     /// Quit was asked for (tray, remote control): closing the window ends
     /// the app instead of leaving it in the background.
     quit: bool,
+    /// Whether the window is shown, for the tray and menu bar window item.
+    window_open: bool,
 }
 
 impl VoiceStrip {
@@ -310,6 +312,18 @@ impl VoiceStrip {
                 {
                     self.menu = None;
                 }
+                continue;
+            }
+            // Cmd+W on macOS, Ctrl+W elsewhere: hide the window, keep running.
+            if let egui::Event::Key {
+                key: egui::Key::W,
+                pressed: true,
+                modifiers,
+                ..
+            } = ev
+                && modifiers.command
+            {
+                ctx.send_viewport_cmd(ViewportCommand::Close);
                 continue;
             }
             match ev {
@@ -495,6 +509,13 @@ impl VoiceStrip {
             tray::TrayCmd::SetPreset(p) => self.controller.set_preset(p),
             tray::TrayCmd::SetNoise(n) => self.controller.set_neural_denoise(n),
             tray::TrayCmd::Show => *effect = Effect::Show,
+            tray::TrayCmd::ToggleWindow => {
+                *effect = if self.window_open {
+                    Effect::Hide
+                } else {
+                    Effect::Show
+                }
+            }
             tray::TrayCmd::Quit => *effect = Effect::Quit,
         }
     }
@@ -510,7 +531,7 @@ impl VoiceStrip {
         for cmd in cmds {
             self.apply(cmd, &mut effect);
         }
-        let now = tray::TrayState::of(self.controller.state());
+        let now = tray::TrayState::of(self.controller.state(), self.window_open);
         if let Some((handle, _, last)) = &mut self.tray
             && now != *last
         {
@@ -530,7 +551,7 @@ impl VoiceStrip {
         for cmd in bar.commands() {
             self.apply(cmd, &mut effect);
         }
-        let now = tray::TrayState::of(self.controller.state());
+        let now = tray::TrayState::of(self.controller.state(), self.window_open);
         if let Some(bar) = &mut self.menubar {
             bar.update(now);
         }
@@ -880,7 +901,7 @@ fn main() -> eframe::Result<()> {
     let menubar = if screenshot {
         None
     } else {
-        menubar::MenuBar::new(tray::TrayState::of(controller.state()))
+        menubar::MenuBar::new(tray::TrayState::of(controller.state(), false))
             .map_err(|e| eprintln!("voice-strip: no menu bar item ({e})"))
             .ok()
     };
@@ -921,11 +942,14 @@ fn main() -> eframe::Result<()> {
         remote,
         last_service: Instant::now(),
         quit: false,
+        window_open: false,
     }));
     let mut window = screenshot || !args.background;
     loop {
         if window {
+            app.borrow_mut().window_open = true;
             run_window(&app, args.scale, screenshot)?;
+            app.borrow_mut().window_open = false;
             if screenshot || app.borrow().quit {
                 return Ok(());
             }
@@ -991,8 +1015,9 @@ fn run_background(app: &Rc<RefCell<VoiceStrip>>) -> Effect {
         menubar::pump(d);
         #[cfg(not(target_os = "macos"))]
         std::thread::sleep(d);
+        // Already hidden: nothing to do for a hide.
         let effect = app.borrow_mut().service();
-        if effect != Effect::None {
+        if !matches!(effect, Effect::None | Effect::Hide) {
             return effect;
         }
     }
@@ -1014,7 +1039,8 @@ impl eframe::App for Window {
         match self.0.borrow_mut().service() {
             Effect::None => {}
             Effect::Show => ctx.send_viewport_cmd(ViewportCommand::Focus),
-            Effect::Quit => ctx.send_viewport_cmd(ViewportCommand::Close),
+            // Closing without quitting leaves the app in the background.
+            Effect::Hide | Effect::Quit => ctx.send_viewport_cmd(ViewportCommand::Close),
         }
         ctx.request_repaint_after(std::time::Duration::from_millis(33));
     }
@@ -1028,7 +1054,7 @@ impl eframe::App for Window {
 #[cfg(target_os = "linux")]
 fn start_tray(st: &app_core::UiState) -> Option<Tray> {
     use ksni::blocking::TrayMethods;
-    let state = tray::TrayState::of(st);
+    let state = tray::TrayState::of(st, false);
     let (tx, rx) = std::sync::mpsc::channel();
     match tray::VoiceStripTray::new(tx, state).spawn() {
         Ok(h) => Some((h, rx, state)),
