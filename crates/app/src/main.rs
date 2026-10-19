@@ -635,7 +635,7 @@ impl VoiceStrip {
             let st = self.controller.state_mut();
             st.standby = standby;
             // No more meter frames: the needles and lamps fall to rest.
-            st.meters = Default::default();
+            st.meters = engine::MeterFrame::silent(&st.meters);
         }
     }
 
