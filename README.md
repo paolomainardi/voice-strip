@@ -19,8 +19,8 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 
 - [Highlights](#highlights)
 - [The chain](#the-chain)
+- [Install with Homebrew](#install-with-homebrew)
 - [Install on Linux from a release](#install-on-linux-from-a-release)
-- [Install on macOS with Homebrew](#install-on-macos-with-homebrew)
 - [Install on macOS from source](#install-on-macos-from-source)
 - [Build from source on Linux](#build-from-source-on-linux)
 - [First run: calibrate](#first-run-calibrate)
@@ -100,6 +100,28 @@ Nine stages in a fixed order, tuned together by the preset and the Intensity kno
 
 Two views show it: a vintage faceplate for everyday use, and an advanced view with the spectrum, loudness and every stage. Both render on the GPU (Vulkan on Linux, Metal on macOS).
 
+## Install with Homebrew
+
+**Recommended** on Apple Silicon Macs with macOS 13 or later, and on Linux x86_64 with glibc 2.39 or later. Homebrew installs the release build, so nothing is compiled on your machine.
+
+```bash
+brew install paolomainardi/tap/voice-strip
+```
+
+On macOS, install the virtual microphone driver once, then start Voice Strip from Terminal the first time, so macOS asks for the microphone permission:
+
+```bash
+voice-strip driver install    # asks for your password and restarts Core Audio, so audio stops for a moment
+voice-strip
+```
+
+On Linux, start `voice-strip`. It needs PipeWire, a Wayland or X11 desktop and a Vulkan driver.
+
+Then select **Voice Strip** (macOS) or **Voice Strip Microphone** (Linux) as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip.
+
+- **Update.** `brew upgrade voice-strip`. On macOS, when a release ships a new driver, the app's footer says so: run `voice-strip driver install` again.
+- **Uninstall.** On macOS, `voice-strip driver uninstall` first. Then `brew uninstall voice-strip`.
+
 ## Install on Linux from a release
 
 Each [release](https://github.com/paolomainardi/voice-strip/releases) has a Linux x86_64 binary. It needs PipeWire, a Wayland or X11 desktop and a Vulkan driver, and runs on distributions with glibc 2.39 or later (Ubuntu 24.04, Debian 13, Fedora 40, Arch Linux and newer). On older ones, build from source.
@@ -114,23 +136,9 @@ tar -xzf voice-strip-v0.4.0-linux-x86_64.tar.gz
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app. Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`.
 
-## Install on macOS with Homebrew
-
-**Recommended** for Apple Silicon Macs on macOS 13 or later. Homebrew installs the app and the virtual microphone driver, and fetches the build tools it needs, so there is nothing to set up by hand.
-
-```bash
-brew install paolomainardi/tap/voice-strip
-voice-strip-install-driver    # installs the virtual microphone; asks for your password and restarts Core Audio, so audio stops for a moment
-voice-strip                   # start it from Terminal the first time, so macOS asks for the microphone permission
-```
-
-Then select **Voice Strip** as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip. After `brew upgrade voice-strip`, run `voice-strip-install-driver` again when the release notes say the driver changed.
-
-To uninstall, run `voice-strip-install-driver --uninstall`, then `brew uninstall voice-strip`.
-
 ## Install on macOS from source
 
-Use this on Intel Macs, to work on Voice Strip, or if you prefer not to use Homebrew. The virtual microphone is a Core Audio driver that must be signed on the Mac that runs it, so you build it yourself and sign it ad-hoc, which needs no Apple account.
+Use this to work on Voice Strip, on a Mac that Homebrew does not cover, or without Homebrew. You build the app and its Core Audio driver yourself and sign the driver ad-hoc, which needs no Apple account.
 
 **1. Install the tools** (macOS 13 or later):
 
