@@ -14,7 +14,14 @@ app-core.workspace = true
 dsp.workspace = true
 engine.workspace = true
 ui-kit.workspace = true
-eframe = "0.36.2"
+# eframe's defaults without egui-wgpu's macOS live-resize fix: it presents
+# frames only with Core Animation transactions until the next window event,
+# which leaves a stretched old frame after the app resizes its own window.
+# The window is not resizable by hand, so the fix is not needed.
+eframe = { version = "0.36.2", default-features = false, features = ["accesskit", "default_fonts", "links", "wayland", "x11", "wgpu_no_default_features"] }
+egui-wgpu = { version = "0.36.2", default-features = false, features = ["fragile-send-sync-non-atomic-wasm"] }
+wgpu = "30.0.1"
+winit = "0.30.13"
 png = "0.18.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
