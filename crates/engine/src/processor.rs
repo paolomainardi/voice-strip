@@ -346,7 +346,9 @@ impl AudioProcessor {
         for block in main_out.chunks_mut(dsp::BLOCK_MAIN) {
             push_slice(scope_in_tx, block);
             acc.input(block);
-            if let Some(v) = vad {
+            if let Some(v) = vad
+                && !main.is_fully_bypassed()
+            {
                 v.push(block);
                 main.set_speech_probability(v.speech_probability());
             }

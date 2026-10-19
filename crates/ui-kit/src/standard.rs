@@ -811,6 +811,15 @@ impl View for StandardView {
                     line = 1;
                     lines[1] = word.to_string();
                 } else {
+                    // Room for the ellipsis: drop words until it fits.
+                    while !lines[1].is_empty()
+                        && p.measure_text(&format!("{}…", lines[1]), &warn).width > width
+                    {
+                        match lines[1].rfind(' ') {
+                            Some(i) => lines[1].truncate(i),
+                            None => lines[1].clear(),
+                        }
+                    }
                     lines[1].push('…');
                     break;
                 }

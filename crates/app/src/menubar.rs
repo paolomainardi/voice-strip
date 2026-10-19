@@ -147,9 +147,15 @@ impl MenuBar {
             let _ = self.menu.remove(&self.update);
             if let Some(label) = state.update_label() {
                 self.update.set_text(label);
-                // Before Show window: on, mute, separator, presets, noise,
-                // separator.
-                let _ = self.menu.insert(&self.update, 6);
+                // Just before Show window.
+                let show = self.show.id().clone();
+                let at = self
+                    .menu
+                    .items()
+                    .iter()
+                    .position(|i| *i.id() == show)
+                    .unwrap_or(0);
+                let _ = self.menu.insert(&self.update, at);
             }
         }
         self.state = state;

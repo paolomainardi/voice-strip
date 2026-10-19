@@ -255,6 +255,8 @@ impl Controller {
         self.state.update_check = crate::updates::enabled(dir);
         if !self.state.update_check {
             self.state.update_available = None;
+            // A check already on its way is dropped with its answer.
+            self.update_rx = None;
         }
         self.last_update_check = None;
         Ok(())
@@ -264,7 +266,9 @@ impl Controller {
         if let Some(rx) = &self.update_rx {
             match rx.try_recv() {
                 Ok(Ok(v)) => {
-                    self.state.update_available = v;
+                    if self.state.update_check {
+                        self.state.update_available = v;
+                    }
                     self.update_rx = None;
                 }
                 // Offline or rate-limited: try again at the next interval.

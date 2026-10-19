@@ -91,6 +91,9 @@ pub struct Chain {
     latency: usize,
     speech_probability: Option<f32>,
     speech_gate: SpeechGate,
+    /// The stages were skipped while fully bypassed; the neural stage
+    /// restarts clean when processing resumes.
+    skipped: bool,
 }
 
 impl Chain {
@@ -142,6 +145,7 @@ impl Chain {
             latency: 0,
             speech_probability: None,
             speech_gate: SpeechGate::default(),
+            skipped: false,
         };
         let mut total = 0;
         // The monitor path skips the denoiser unless a neural one is given
@@ -278,7 +282,17 @@ impl Chain {
         }
         let fully_bypassed = self.bypass.is_settled() && self.bypass.value() == 1.0;
 
-        if !fully_bypassed || self.latency > 0 {
+        // Fully bypassed, the output is the delayed dry signal: the stages
+        // are not run, so bypass costs almost nothing. Coming back, the
+        // neural stage drops the frames it had in flight (its timeline
+        // stopped) and the bypass crossfade covers the restart.
+        if fully_bypassed {
+            self.skipped = true;
+        } else {
+            if self.skipped {
+                self.skipped = false;
+                self.denoise.reset();
+            }
             for m in Module::ALL {
                 self.run_slot(m, buf);
                 meters.gain_reduction_db[m.index()] = if self.slots[m.index()].active {
@@ -317,6 +331,12 @@ impl Chain {
             meters.room_db = self.denoise.room_db();
         }
         meters
+    }
+
+    /// Whether the output is the dry signal only (bypass settled), when
+    /// the stages are not run and the voice detector need not be fed.
+    pub fn is_fully_bypassed(&self) -> bool {
+        self.bypass.is_settled() && self.bypass.value() == 1.0
     }
 
     fn bypass_engaged(&self) -> bool {
