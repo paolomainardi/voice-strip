@@ -1317,11 +1317,20 @@ impl View for AdvancedView {
             right -= w + 8.0;
         }
         self.text.clear();
-        let _ = write!(self.text, "Mic {:.1} ms", state.mic_latency_ms);
+        if state.standby {
+            self.text.push_str("Standby");
+        } else {
+            let _ = write!(self.text, "Mic {:.1} ms", state.mic_latency_ms);
+        }
         let w = p.measure_text(&self.text, &m13).width + 10.0 + 8.0 + 6.0 + 10.0;
         let r = Rect::new(right - w, hy + 2.0, w, 34.0);
         p.border_rounded_rect(r, 17.0, 1.0, th::BORDER);
-        p.fill_circle(r.x + 15.0, r.y + 17.0, 4.0, th::ACCENT);
+        p.fill_circle(
+            r.x + 15.0,
+            r.y + 17.0,
+            4.0,
+            if state.standby { th::DIM } else { th::ACCENT },
+        );
         p.text_in_rect(
             &self.text,
             Rect::new(r.x + 24.0, r.y, w, 34.0),

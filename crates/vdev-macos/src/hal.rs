@@ -251,6 +251,11 @@ pub fn default_output() -> Result<AudioObjectId, OsStatus> {
     read(SYSTEM_OBJECT, global(PROP_DEFAULT_OUTPUT_DEVICE), 0u32)
 }
 
+/// Whether some client runs IO on the device (`kAudioDevicePropertyDeviceIsRunning`).
+pub fn is_running(id: AudioObjectId) -> Result<bool, OsStatus> {
+    read(id, global(fourcc(b"goin")), 0u32).map(|v| v != 0)
+}
+
 pub fn nominal_rate(id: AudioObjectId) -> Result<f64, OsStatus> {
     read(id, global(PROP_NOMINAL_SAMPLE_RATE), 0f64)
 }

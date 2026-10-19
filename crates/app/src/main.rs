@@ -159,6 +159,10 @@ struct VoiceStrip {
     prompted: bool,
     active: ViewKind,
     backend: Option<Box<dyn RunningBackend>>,
+    /// Last time something needed the microphone (an application reading
+    /// Voice Strip, the monitor, calibration); capture pauses
+    /// [`STANDBY_AFTER`] later.
+    needed_at: Instant,
     /// The platform backend, kept to list devices again.
     devices: Box<dyn AudioBackend>,
     inputs: Vec<DeviceInfo>,
@@ -581,6 +585,7 @@ impl VoiceStrip {
             }
             self.controller.tick();
             self.feed_scopes();
+            self.standby();
         }
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         let mut effect = self.tray();
@@ -611,6 +616,27 @@ impl VoiceStrip {
             self.quit = true;
         }
         effect
+    }
+
+    /// Releases the microphone while nobody needs it, and takes it back
+    /// as soon as someone does.
+    fn standby(&mut self) {
+        let Some(b) = &self.backend else { return };
+        let st = self.controller.state();
+        let needed = b.has_readers() != Some(false)
+            || st.monitor.enabled
+            || self.controller.is_calibrating();
+        if needed {
+            self.needed_at = Instant::now();
+        }
+        let standby = !needed && self.needed_at.elapsed() >= STANDBY_AFTER;
+        if standby != st.standby {
+            b.set_capture(!standby);
+            let st = self.controller.state_mut();
+            st.standby = standby;
+            // No more meter frames: the needles and lamps fall to rest.
+            st.meters = Default::default();
+        }
     }
 
     fn cursor(&mut self) -> Cursor {
@@ -939,6 +965,7 @@ fn main() -> eframe::Result<()> {
         prompted: false,
         active,
         backend: running,
+        needed_at: Instant::now(),
         devices: backend,
         inputs,
         outputs,
@@ -1068,6 +1095,10 @@ impl eframe::App for Window {
         self.0.borrow_mut().ui(ui, frame);
     }
 }
+
+/// How long the microphone stays open after the last application stopped
+/// reading Voice Strip.
+const STANDBY_AFTER: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Opens `url` in the default browser.
 fn open_url(url: &str) {

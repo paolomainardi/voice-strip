@@ -186,6 +186,12 @@ pub fn models(state: &UiState) -> String {
              noise floor."
         ),
     };
+    if state.standby {
+        return "Standby: no application uses the Voice Strip microphone, so the physical \
+                microphone is released and nothing is processed. It comes back as soon as an \
+                application opens Voice Strip, the headphone monitor is on or you calibrate."
+            .into();
+    }
     let dfn = if state.neural_denoise.is_some() {
         "Noise removal (DeepFilterNet3) cleans every 10 ms of your voice."
     } else {

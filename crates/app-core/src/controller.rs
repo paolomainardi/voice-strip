@@ -58,6 +58,9 @@ pub struct UiState {
     pub update_available: Option<String>,
     /// Whether the daily update check is on.
     pub update_check: bool,
+    /// Capture paused because no application reads the virtual
+    /// microphone: the physical microphone is released.
+    pub standby: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -225,6 +228,7 @@ impl Controller {
                 voice_detector: DetectorState::Loading,
                 update_available: None,
                 update_check: false,
+                standby: false,
             },
         };
         c.sync_chain();

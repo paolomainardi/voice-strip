@@ -175,6 +175,8 @@ pub(crate) enum Command {
     SetInput(Option<String>),
     /// Send the monitor to this sink node (`None`: follow the default sink).
     SetMonitorOutput(Option<String>),
+    /// Link (`true`) or unlink the microphone.
+    SetCapture(bool),
 }
 
 /// State published by the PipeWire thread and the realtime callback.
@@ -194,6 +196,8 @@ pub(crate) struct Status {
     pub driver_delay: AtomicI64,
     /// Realtime callbacks run so far.
     pub cycles: AtomicUsize,
+    /// Links reading the virtual microphone (other applications).
+    pub readers: AtomicUsize,
     error: Mutex<Option<String>>,
 }
 
@@ -283,6 +287,17 @@ impl RunningBackend for PipeWireRunning {
         let _ = self
             .tx
             .send(Command::SetMonitorOutput(output.map(str::to_owned)));
+    }
+
+    fn has_readers(&self) -> Option<bool> {
+        self.status
+            .connected
+            .load(Ordering::Acquire)
+            .then(|| self.status.readers.load(Ordering::Acquire) > 0)
+    }
+
+    fn set_capture(&self, on: bool) {
+        let _ = self.tx.send(Command::SetCapture(on));
     }
 }
 

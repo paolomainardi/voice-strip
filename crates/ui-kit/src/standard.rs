@@ -568,7 +568,7 @@ impl View for StandardView {
         )
         .spacing(1.5);
         p.fill_text(
-            "VOICE",
+            if state.standby { "STANDBY" } else { "VOICE" },
             VOICE_LABEL_X,
             VOICE_LAMP.y - 2.5,
             &voice_style,

@@ -159,6 +159,9 @@ struct State {
     monitor_sink: Option<u32>,
     metadata: Option<(pw::metadata::Metadata, pw::metadata::MetadataListener)>,
     reported_latency: usize,
+    /// Capture wanted: off, the microphone link is removed so the source
+    /// can suspend and nothing runs.
+    capture_on: bool,
 }
 
 impl State {
@@ -216,8 +219,28 @@ impl State {
         self.sync_monitor();
     }
 
+    /// Pauses or resumes capture (see [`RunningBackend::set_capture`]).
+    fn set_capture(&mut self, on: bool) {
+        if self.capture_on == on {
+            return;
+        }
+        debug!("capture: {}", if on { "resumed" } else { "paused" });
+        self.capture_on = on;
+        // Inactive, the node is not scheduled even while its output stays
+        // linked to the virtual microphone.
+        // SAFETY: `filter` is a live filter until `run` tears it down.
+        unsafe { pw_sys::pw_filter_set_active(self.filter, on) };
+        if on {
+            self.sync_capture();
+        } else {
+            self.capture_link = None;
+            self.capture_target = None;
+            self.status.linked.store(false, Ordering::Release);
+        }
+    }
+
     fn sync_capture(&mut self) {
-        if self.capture_link.is_some() {
+        if self.capture_link.is_some() || !self.capture_on {
             return;
         }
         let Some(me) = self.node_id() else {
@@ -394,6 +417,9 @@ impl State {
 
     /// Periodic: links, monitor port lifecycle and latency declaration.
     fn poll(&mut self) {
+        self.status
+            .readers
+            .store(self.graph.readers(), Ordering::Release);
         self.sync_capture();
         self.sync_output();
         let wanted = self.watch.monitor_wanted();
@@ -585,6 +611,7 @@ pub(crate) fn run(
         monitor_sink: None,
         metadata: None,
         reported_latency,
+        capture_on: true,
     }));
 
     let _core_listener = {
@@ -670,6 +697,7 @@ pub(crate) fn run(
             Command::Stop => mainloop.quit(),
             Command::SetInput(input) => state.borrow_mut().set_input(input),
             Command::SetMonitorOutput(out) => state.borrow_mut().set_monitor_output(out),
+            Command::SetCapture(on) => state.borrow_mut().set_capture(on),
         }
     });
 

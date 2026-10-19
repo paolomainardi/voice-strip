@@ -376,7 +376,12 @@ impl MacBackend {
                 .map_err(|e| BackendError(format!("control thread: {e}")))?
         };
         Ok(MacRunning {
-            io: Mutex::new(Io { dev, proc_id, info }),
+            io: Mutex::new(Io {
+                dev,
+                proc_id,
+                info,
+                paused: false,
+            }),
             rt,
             mapping,
             status,
@@ -516,6 +521,9 @@ struct Io {
     dev: AudioObjectId,
     proc_id: IoProcId,
     info: CaptureInfo,
+    /// Capture paused: the IOProc is stopped and destroyed, so the
+    /// microphone is released.
+    paused: bool,
 }
 
 /// A running capture. Dropping it stops IO and removes the segment.
@@ -552,6 +560,13 @@ impl MacRunning {
     fn switch(&self, dev: AudioObjectId) -> Result<(), BackendError> {
         let cap = prepare(dev)?;
         let mut io = self.io.lock().unwrap_or_else(|e| e.into_inner());
+        if io.paused {
+            // Resumed on the new device; nothing runs meanwhile.
+            // SAFETY: the IOProc is stopped while paused, so `rt` is ours.
+            io.info = unsafe { &mut *self.rt }.configure(cap);
+            io.dev = dev;
+            return Ok(());
+        }
         // SAFETY: from start_io_proc on `io.dev`; afterwards the IOProc no
         // longer runs, so `rt` is ours until it starts again.
         unsafe { hal::stop_io_proc(io.dev, io.proc_id) };
@@ -561,7 +576,12 @@ impl MacRunning {
         // SAFETY: `rt` outlives the IOProc (freed in Drop after stopping it).
         match unsafe { hal::start_io_proc(dev, capture, self.rt as *mut c_void) } {
             Ok(proc_id) => {
-                *io = Io { dev, proc_id, info };
+                *io = Io {
+                    dev,
+                    proc_id,
+                    info,
+                    paused: false,
+                };
                 Ok(())
             }
             Err(e) => {
@@ -601,14 +621,42 @@ impl RunningBackend for MacRunning {
             eprintln!("voice-strip: cannot switch microphone: {e}");
         }
     }
+
+    fn has_readers(&self) -> Option<bool> {
+        let dev = hal::find(model::DEVICE_UID).ok().flatten()?;
+        hal::is_running(dev).ok()
+    }
+
+    fn set_capture(&self, on: bool) {
+        let mut io = self.io.lock().unwrap_or_else(|e| e.into_inner());
+        if io.paused != on {
+            return;
+        }
+        if on {
+            // SAFETY: `rt` outlives the IOProc (freed in Drop after stopping it).
+            match unsafe { hal::start_io_proc(io.dev, capture, self.rt as *mut c_void) } {
+                Ok(proc_id) => {
+                    io.proc_id = proc_id;
+                    io.paused = false;
+                }
+                Err(e) => eprintln!("voice-strip: cannot resume the microphone: {e}"),
+            }
+        } else {
+            // SAFETY: from start_io_proc on `io.dev`; it is not called again.
+            unsafe { hal::stop_io_proc(io.dev, io.proc_id) };
+            io.paused = true;
+        }
+    }
 }
 
 impl Drop for MacRunning {
     fn drop(&mut self) {
         let io = self.io.lock().unwrap_or_else(|e| e.into_inner());
-        // SAFETY: from start_io_proc on `dev`; after this the IOProc is
-        // never called again.
-        unsafe { hal::stop_io_proc(io.dev, io.proc_id) };
+        if !io.paused {
+            // SAFETY: from start_io_proc on `dev`; after this the IOProc is
+            // never called again.
+            unsafe { hal::stop_io_proc(io.dev, io.proc_id) };
+        }
         drop(io);
         // SAFETY: from Box::into_raw; the IOProc no longer uses it.
         drop(unsafe { Box::from_raw(self.rt) });
