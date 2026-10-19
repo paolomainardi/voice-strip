@@ -9,6 +9,8 @@ The specification is [docs/HANDOFF.md](docs/HANDOFF.md). When in doubt, it wins.
 - The desktop UI is one egui (eframe) app for Linux and macOS, rendered on the GPU with wgpu (Vulkan on Linux, Metal on macOS). Graphical elements are drawn by the toolkit-neutral `ui-kit` crate through a painter interface; `crates/app` implements it on epaint. GTK was dropped after the egui proof of concept (`docs/egui-poc.md`).
 - All UI copy is in English, even where the design sources are in Italian.
 - The macOS virtual microphone is written in Rust on the raw Core Audio plug-in interface, with libASPL as a reference only.
+- Standby: when no application reads the virtual microphone for 5 s, the physical microphone is released and nothing is processed (`docs/standby.md`).
+- Update check: once a day the app asks GitHub for the latest release and shows a newer one; it downloads nothing, and `voice-strip ctl updates off` or `VOICE_STRIP_NO_UPDATE_CHECK` turns it off. It is the app's only request not started by the user.
 
 **Tech stack:** Rust 2024 edition, 48 kHz mono float32, PipeWire on Linux, egui/eframe with wgpu for the desktop UI.
 
