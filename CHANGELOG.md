@@ -11,7 +11,7 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ### Changed
 
-- The Show window item in the tray and menu bar toggles the window, reading Hide window while it is shown.
+- The Show window item in the tray and menu bar, and a click on the Linux tray icon, toggle the window; the item reads Hide window while it is shown.
 
 ## [0.3.0] - 2026-10-18
 

@@ -18,9 +18,8 @@ pub enum TrayCmd {
     SetMuted(bool),
     SetPreset(PresetId),
     SetNoise(Option<app_core::DenoiseLevel>),
-    Show,
-    /// The window item: hides the window when it is shown, shows it
-    /// otherwise.
+    /// The window item and a click on the icon: hides the window when it
+    /// is shown, shows it otherwise.
     ToggleWindow,
     Quit,
 }
@@ -115,7 +114,7 @@ impl ksni::Tray for VoiceStripTray {
     }
 
     fn activate(&mut self, _x: i32, _y: i32) {
-        let _ = self.tx.send(TrayCmd::Show);
+        let _ = self.tx.send(TrayCmd::ToggleWindow);
     }
 
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {

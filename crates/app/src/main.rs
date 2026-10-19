@@ -508,7 +508,6 @@ impl VoiceStrip {
             tray::TrayCmd::SetMuted(m) => self.controller.set_muted(m),
             tray::TrayCmd::SetPreset(p) => self.controller.set_preset(p),
             tray::TrayCmd::SetNoise(n) => self.controller.set_neural_denoise(n),
-            tray::TrayCmd::Show => *effect = Effect::Show,
             tray::TrayCmd::ToggleWindow => {
                 *effect = if self.window_open {
                     Effect::Hide
