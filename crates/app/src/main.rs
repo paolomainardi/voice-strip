@@ -508,6 +508,7 @@ impl VoiceStrip {
             tray::TrayCmd::SetMuted(m) => self.controller.set_muted(m),
             tray::TrayCmd::SetPreset(p) => self.controller.set_preset(p),
             tray::TrayCmd::SetNoise(n) => self.controller.set_neural_denoise(n),
+            tray::TrayCmd::ToggleWindow if *effect == Effect::Quit => {}
             tray::TrayCmd::ToggleWindow => {
                 *effect = if self.window_open {
                     Effect::Hide
@@ -581,7 +582,8 @@ impl VoiceStrip {
         let mut effect = Effect::None;
         if let Some(r) = &mut self.remote {
             let e = r.frame(&mut self.controller, dt);
-            if e != Effect::None {
+            // A quit from the tray or remote control always wins.
+            if e != Effect::None && effect != Effect::Quit {
                 effect = e;
             }
         }
