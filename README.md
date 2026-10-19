@@ -20,6 +20,7 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 - [Highlights](#highlights)
 - [The chain](#the-chain)
 - [Install on Linux from a release](#install-on-linux-from-a-release)
+- [Install on macOS with Homebrew](#install-on-macos-with-homebrew)
 - [Install on macOS from source](#install-on-macos-from-source)
 - [Build from source on Linux](#build-from-source-on-linux)
 - [First run: calibrate](#first-run-calibrate)
@@ -113,9 +114,23 @@ tar -xzf voice-strip-v0.4.0-linux-x86_64.tar.gz
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app. Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`.
 
+## Install on macOS with Homebrew
+
+**Recommended** for Apple Silicon Macs on macOS 13 or later. Homebrew installs the app and the virtual microphone driver, and fetches the build tools it needs, so there is nothing to set up by hand.
+
+```bash
+brew install paolomainardi/tap/voice-strip
+voice-strip-install-driver    # installs the virtual microphone; asks for your password and restarts Core Audio, so audio stops for a moment
+voice-strip                   # start it from Terminal the first time, so macOS asks for the microphone permission
+```
+
+Then select **Voice Strip** as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip. After `brew upgrade voice-strip`, run `voice-strip-install-driver` again when the release notes say the driver changed.
+
+To uninstall, run `voice-strip-install-driver --uninstall`, then `brew uninstall voice-strip`.
+
 ## Install on macOS from source
 
-Each release includes a macOS arm64 build, with the app and its Core Audio driver ad-hoc signed (no Apple account involved), for the Homebrew tap. To build it yourself instead:
+Use this on Intel Macs, to work on Voice Strip, or if you prefer not to use Homebrew. The virtual microphone is a Core Audio driver that must be signed on the Mac that runs it, so you build it yourself and sign it ad-hoc, which needs no Apple account.
 
 **1. Install the tools** (macOS 13 or later):
 
