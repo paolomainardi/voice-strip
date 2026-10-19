@@ -9,6 +9,7 @@
 //! voice-strip ctl <command>   (controls the running app, see `voice-strip ctl --help`)
 //! voice-strip --fonts-dir     (prints the folder of the bundled fonts)
 
+mod driver;
 mod fonts;
 #[cfg(target_os = "macos")]
 mod menubar;
@@ -40,7 +41,8 @@ const USAGE: &str =
 [--headphones NODE] [--preset broadcast|podcast|call|stream|narration] \
 [--noise off|light|medium|strong] [--list-devices]
        voice-strip --screenshot standard|advanced <out.png> [--scale N] [--monitor] [--model-prompt]
-       voice-strip ctl <command>   (see voice-strip ctl --help)";
+       voice-strip ctl <command>   (see voice-strip ctl --help)
+       voice-strip driver status | install [--if-needed] | uninstall   (macOS virtual microphone)";
 
 #[derive(Default)]
 struct Args {
@@ -836,6 +838,7 @@ fn main() -> eframe::Result<()> {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     match argv.first().map(String::as_str) {
         Some("ctl") => std::process::exit(app_core::remote::client::cli(&argv[1..])),
+        Some("driver") => std::process::exit(driver::cli(&argv[1..])),
         // For clients that draw with the app's type while it is closed.
         Some("--fonts-dir") => {
             println!("{}", fonts::files_dir().display());
@@ -926,6 +929,11 @@ fn main() -> eframe::Result<()> {
             .as_deref()
             .map_or_else(|| "Default microphone".into(), |id| label_of(&inputs, id));
         controller.select_input(args.input.as_deref(), label);
+        // macOS: the virtual microphone driver missing or older than the
+        // one shipped with this binary.
+        if let Some(n) = driver::notice() {
+            controller.state_mut().notice = Some(n);
+        }
         if let Some(p) = args.preset {
             controller.set_preset(p);
         }

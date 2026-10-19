@@ -7,6 +7,12 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 ### Added
 
 - Releases include a macOS arm64 build of the app and its driver.
+- `voice-strip driver status|install|uninstall` manages the macOS driver from the app's own command; `install --if-needed` replaces it only when its code changed.
+- The app tells you when the macOS driver is missing or a release ships a new one.
+
+### Removed
+
+- `scripts/macos-driver-install.sh`, replaced by `voice-strip driver install`; `just macos-driver-install --uninstall` is now `voice-strip driver uninstall`.
 
 ## [0.4.0] - 2026-10-19
 

@@ -23,6 +23,7 @@ ksni = { version = "0.3.6", default-features = false, features = ["blocking", "a
 
 [target.'cfg(target_os = "macos")'.dependencies]
 vdev-macos.workspace = true
+vdev-macos-driver.workspace = true
 objc2 = "0.6.5"
 objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSEvent", "NSResponder", "NSScreen"] }
 objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSDate", "NSGeometry", "NSObjCRuntime", "NSRunLoop", "NSString"] }
