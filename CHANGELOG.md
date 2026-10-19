@@ -4,6 +4,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-19
+
 ### Added
 
 - `just upgrade` moves a clone to the latest release, rebuilds, reinstalls the macOS driver only when it changed, and restarts the app.
@@ -110,7 +112,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/paolomainardi/voice-strip/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/paolomainardi/voice-strip/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/paolomainardi/voice-strip/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/paolomainardi/voice-strip/compare/v0.2.0...v0.2.1
