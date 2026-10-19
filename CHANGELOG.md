@@ -13,6 +13,10 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - `voice-strip ctl updates on|off` turns the update check on or off, and `ctl status` reports it.
 - Standby: 5 s after the last application stops using the Voice Strip microphone, the physical microphone is released and nothing is processed; it comes back when an application opens Voice Strip, the monitor is on or you calibrate. The ON button reads STANDBY and `ctl status` reports `capture`.
 
+### Changed
+
+- The window draws its faceplate once and no longer redraws continuously, using far less CPU; in standby it redraws 4 times a second.
+
 ### Fixed
 
 - A notice in the standard view footer no longer runs over CALIBRATE.
