@@ -47,3 +47,42 @@ jobs:
           key: ${{ matrix.os }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ matrix.os }}-
       - run: just check
+
+  # Installs the driver on the runner, as a user would: the runner has
+  # passwordless sudo, and `script` gives `voice-strip driver` a terminal so
+  # it uses sudo instead of the administrator prompt.
+  driver-install:
+    name: driver install (macos-15)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-09
+        with:
+          toolchain: stable
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: driver-install-${{ hashFiles('Cargo.lock') }}
+          restore-keys: driver-install-
+      - run: cargo build --release --locked -p app
+      - run: scripts/macos-driver.sh
+      - name: Install
+        run: script -q /dev/null target/release/voice-strip driver install
+      - name: Loaded
+        run: |
+          status=$(target/release/voice-strip driver status)
+          echo "$status"
+          grep -q '^installed: .*(revision ' <<<"$status"
+          grep -q '^loaded:    yes' <<<"$status"
+      - name: Install again only when needed
+        run: |
+          out=$(script -q /dev/null target/release/voice-strip driver install --if-needed)
+          echo "$out"
+          grep -q 'already installed' <<<"$out"
+      - name: Uninstall
+        run: |
+          script -q /dev/null target/release/voice-strip driver uninstall
+          ! test -e /Library/Audio/Plug-Ins/HAL/VoiceStrip.driver
