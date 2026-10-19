@@ -87,7 +87,7 @@ upgrade:
         exit 0
     fi
     if ! git merge-base --is-ancestor HEAD "$latest"; then
-        echo "upgrade: this clone has commits that $latest does not; check out a release or main first" >&2
+        echo "upgrade: this clone has commits that $latest does not; check out an earlier release first (git checkout <tag>), then run just upgrade again" >&2
         exit 1
     fi
     current=$(git describe --tags --always)
