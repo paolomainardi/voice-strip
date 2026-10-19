@@ -63,6 +63,70 @@ start *args: build stop
     sleep 2
     just status
 
+# Upgrade this clone to the latest release: rebuild, reinstall the macOS driver if it changed, restart the app
+[group('app')]
+upgrade:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+        echo "upgrade: this clone has local changes; commit or stash them first" >&2
+        exit 1
+    fi
+    git fetch --quiet --tags origin
+    # Final releases only, as GitHub's latest release: no pre-release tags.
+    latest=$(git tag --list --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)
+    if [ -z "$latest" ]; then
+        echo "upgrade: no release tag found" >&2
+        exit 1
+    fi
+    # An upgrade that stopped half way (build or driver install failed)
+    # left this marker: finish it instead of reporting "already on".
+    pending=target/upgrade-pending
+    if [ "$(git rev-parse HEAD)" = "$(git rev-parse "$latest^{commit}")" ] && [ ! -f "$pending" ]; then
+        echo "upgrade: already on $latest"
+        exit 0
+    fi
+    if ! git merge-base --is-ancestor HEAD "$latest"; then
+        echo "upgrade: this clone has commits that $latest does not; check out a release or main first" >&2
+        exit 1
+    fi
+    current=$(git describe --tags --always)
+    echo "upgrade: $current -> $latest"
+    # The driver changed when its code, bundle or build scripts did; the
+    # version bump every release makes in its Cargo.toml does not count.
+    driver_changed=$(cat "$pending" 2>/dev/null || echo 0)
+    git diff --quiet HEAD "$latest" -- crates/vdev-macos-driver/src crates/vdev-macos-driver/Info.plist \
+        scripts/macos-driver.sh scripts/macos-driver-install.sh || driver_changed=1
+    if git diff HEAD "$latest" -- crates/vdev-macos-driver/Cargo.toml Cargo.toml | grep '^[-+][^-+]' | grep -qv '^[-+]version = '; then
+        driver_changed=1
+    fi
+    mkdir -p target
+    echo "$driver_changed" > "$pending"
+    # Restart a running app with the arguments it was started with.
+    running=0
+    args=""
+    if pid=$(pgrep -x voice-strip | head -n 1); then
+        running=1
+        # Everything after the binary's own path.
+        line=$(ps -o args= -p "$pid")
+        args=${line#*/voice-strip}
+        args=${args# }
+    fi
+    git -c advice.detachedHead=false checkout --quiet "$latest"
+    cargo build --release -p app
+    if [ "$(uname -s)" = Darwin ] && [ "$driver_changed" = 1 ]; then
+        echo "upgrade: the driver changed; installing it (asks for sudo, audio stops for a moment)"
+        just macos-driver
+        just macos-driver-install
+    fi
+    rm -f "$pending"
+    if [ "$running" = 1 ]; then
+        set -f # the saved arguments are words; no globbing
+        # shellcheck disable=SC2086
+        just start $args
+    fi
+    echo "upgrade: now on $latest"
+
 # Start the app in the background in the advanced view; arguments go to voice-strip
 [group('app')]
 start-advanced *args:
@@ -81,7 +145,12 @@ sim *args: build
 # Stop the running app
 [group('app')]
 stop:
-    @pkill -x voice-strip && echo "stopped" || echo "not running"
+    #!/usr/bin/env bash
+    if ! pkill -x voice-strip; then echo "not running"; exit 0; fi
+    # Wait for it to exit, so a start right after finds the control socket free.
+    for _ in $(seq 1 50); do pgrep -x voice-strip >/dev/null || { echo "stopped"; exit 0; }; sleep 0.1; done
+    echo "still stopping after 5 s" >&2
+    exit 1
 
 # Restart the app in the background; arguments go to voice-strip
 [group('app')]

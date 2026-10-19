@@ -53,7 +53,7 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 </td>
 <td valign="top">
 
-**Stays on your computer.** No account, no cloud, no audio sent anywhere. The noise removal model downloads only after you agree, and only if its checksum matches.
+**Stays on your computer.** No account, no cloud, no audio sent anywhere. The noise removal model downloads only after you agree, and only if its checksum matches. Once a day the app asks GitHub whether a new release exists; `voice-strip ctl updates off` stops it.
 
 </td>
 </tr>
@@ -135,7 +135,7 @@ just macos-driver-install     # install it and restart coreaudiod (asks for sudo
 just start                    # build, then run in the background on the default microphone
 ```
 
-**3. Use it.** Select **Voice Strip** as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip. Run the two driver steps again after updating to a version that changes the driver.
+**3. Use it.** Select **Voice Strip** as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip. To update, run `just upgrade` from Terminal in the clone: it moves to the latest release, rebuilds, reinstalls the driver only when it changed, and restarts the app with its arguments.
 
 - **Microphone permission.** macOS asks once, for the app that starts Voice Strip: start it from Terminal. A process started over SSH is never granted the microphone and records silence.
 - **Manage it.** `just status`, `just logs` and `just stop`; `just start --input <UID>` starts on a given microphone (see `just devices`).
@@ -183,6 +183,8 @@ Calibrations live in `~/.config/voice-strip/profiles/` on Linux (`$XDG_CONFIG_HO
 
 ## Using it
 
+- **Updates.** When a newer release exists, the subtitle of the standard view becomes **UPDATE x.y.z**, the advanced view shows an Update pill, and the tray or menu bar gets an "Update to x.y.z…" item; each opens the release notes. Nothing is downloaded or installed by the app. From a clone, `just upgrade` installs it; release binaries are replaced by hand. The check is one request a day to `api.github.com`, which sees your IP address; `voice-strip ctl updates off`, saved in `~/.config/voice-strip/no-update-check` (macOS: `~/Library/Application Support/voice-strip/`), or `VOICE_STRIP_NO_UPDATE_CHECK=1` turns it off.
+
 - **Microphone and headphones.** Pick them in the app, or start with `--input` and `--headphones` (see `just devices`).
 - **Presets and noise removal.** A preset sets the tone and loudness target. The three gauges under the presets show how much it compresses, brightens and keeps the warmth of your voice, and follow the Intensity knob; hover a preset to read what it is for. Noise removal adds about 20 ms of delay: it is light in Broadcast and Podcast, medium in Stream, strong in Call and off in Narration.
 - **Headphone monitor.** The headphones get a lighter chain than the virtual microphone, without noise removal, saturation or leveler, to keep the delay low. Bluetooth headphones add 150 ms or more of their own: use wired ones to monitor.
@@ -205,6 +207,7 @@ voice-strip ctl intensity 70           # 0 to 100
 voice-strip ctl phones toggle          # headphone monitor: on off toggle
 voice-strip ctl show                   # open the window (starts the app)
 voice-strip ctl hide                   # hide the window; the app keeps running
+voice-strip ctl updates off            # stop the daily update check (on to resume)
 voice-strip ctl start                  # start the app in the background, without its window
 voice-strip ctl quit
 ```

@@ -174,3 +174,85 @@ fn handoff_covers_the_worker_budget() {
     assert_eq!(handoff_samples(Some(48), F), F + 96);
     assert_eq!(handoff_samples(None, F), 2 * F + WORKER_BUDGET);
 }
+
+/// A worker that answers every frame at once and counts what it got.
+struct Counting {
+    submitted: Rc<Cell<usize>>,
+    ready: VecDeque<Vec<f32>>,
+}
+
+unsafe impl Send for Counting {}
+
+impl FrameDenoiser for Counting {
+    fn frame_len(&self) -> usize {
+        F
+    }
+    fn model_latency_samples(&self) -> usize {
+        0
+    }
+    fn submit(&mut self, frame: &[f32]) -> bool {
+        self.submitted.set(self.submitted.get() + 1);
+        self.ready.push_back(frame.to_vec());
+        true
+    }
+    fn fetch(&mut self, out: &mut [f32]) -> bool {
+        match self.ready.pop_front() {
+            Some(f) => {
+                out.copy_from_slice(&f);
+                true
+            }
+            None => false,
+        }
+    }
+}
+
+/// Bypass costs nothing: once fully bypassed, the neural stage receives no
+/// frame, the output is the input delayed by the chain latency, and coming
+/// back to processing restarts the stage without counting missed frames.
+#[test]
+fn full_bypass_skips_the_neural_stage() {
+    let submitted = Rc::new(Cell::new(0));
+    let fake = Counting {
+        submitted: submitted.clone(),
+        ready: VecDeque::new(),
+    };
+    let mut chain = Chain::with_denoiser(PathKind::Main, F, Some(Box::new(fake)));
+    let mut s = ChainSettings::default();
+    s.modules.denoise_mix = 1.0;
+    chain.set_settings(&s);
+    let lat = chain.latency_samples();
+    let x: Vec<f32> = (0..F * 400)
+        .map(|i| ((i as f32) * 0.01).sin() * 0.3)
+        .collect();
+    let mut y = x.clone();
+    let run = |chain: &mut Chain, y: &mut [f32], from: usize, n: usize| {
+        for i in from..from + n {
+            chain.process(&mut y[i * F..(i + 1) * F]);
+        }
+    };
+    run(&mut chain, &mut y, 0, 50);
+    s.bypass = true;
+    chain.set_settings(&s);
+    // Let the crossfade settle (about 115 ms to exact), then count.
+    run(&mut chain, &mut y, 50, 20);
+    assert!(chain.is_fully_bypassed());
+    let before = submitted.get();
+    run(&mut chain, &mut y, 70, 200);
+    assert_eq!(submitted.get(), before, "frames sent while fully bypassed");
+    for n in 70 * F..270 * F {
+        assert!(
+            (y[n] - x[n - lat]).abs() < 1e-6,
+            "bypass output is not the delayed input"
+        );
+    }
+    let misses = chain.denoise_missed_frames();
+    s.bypass = false;
+    chain.set_settings(&s);
+    run(&mut chain, &mut y, 270, 130);
+    assert!(submitted.get() > before, "processing did not resume");
+    assert_eq!(
+        chain.denoise_missed_frames(),
+        misses,
+        "resume counted missed frames"
+    );
+}

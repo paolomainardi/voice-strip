@@ -185,6 +185,10 @@ struct VoiceStrip {
     #[cfg(target_os = "macos")]
     menubar: Option<menubar::MenuBar>,
     remote: Option<remote::Remote>,
+    /// Last attempt to take the control socket while another instance held
+    /// it: one that is still exiting (a restart) frees it a moment later.
+    /// `None` never retries (screenshots).
+    remote_retry: Option<Instant>,
     /// Last run of [`VoiceStrip::service`].
     last_service: Instant,
     /// Quit was asked for (tray, remote control): closing the window ends
@@ -267,6 +271,7 @@ impl VoiceStrip {
                 }
                 Action::DownloadModel => self.controller.download_model(),
                 Action::DismissModelPrompt => self.controller.dismiss_model_prompt(),
+                Action::OpenUpdate => open_url(app_core::updates::RELEASES_PAGE),
             }
         }
     }
@@ -508,6 +513,7 @@ impl VoiceStrip {
             tray::TrayCmd::SetMuted(m) => self.controller.set_muted(m),
             tray::TrayCmd::SetPreset(p) => self.controller.set_preset(p),
             tray::TrayCmd::SetNoise(n) => self.controller.set_neural_denoise(n),
+            tray::TrayCmd::OpenUpdate => open_url(app_core::updates::RELEASES_PAGE),
             tray::TrayCmd::ToggleWindow if *effect == Effect::Quit => {}
             tray::TrayCmd::ToggleWindow => {
                 *effect = if self.window_open {
@@ -580,6 +586,13 @@ impl VoiceStrip {
         let mut effect = self.tray();
         #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         let mut effect = Effect::None;
+        if self.remote.is_none()
+            && let Some(t) = self.remote_retry
+            && t.elapsed() >= std::time::Duration::from_secs(1)
+        {
+            self.remote_retry = Some(Instant::now());
+            self.remote = remote::Remote::start(true);
+        }
         if let Some(r) = &mut self.remote {
             let e = r.frame(&mut self.controller, dt);
             // A quit from the tray or remote control always wins.
@@ -868,6 +881,9 @@ fn main() -> eframe::Result<()> {
         if let Some(dir) = app_core::profiles::default_dir() {
             controller.set_profiles_dir(dir);
         }
+        if let Some(dir) = app_core::updates::settings_dir() {
+            controller.enable_update_check(dir);
+        }
         let label = args
             .input
             .as_deref()
@@ -909,8 +925,9 @@ fn main() -> eframe::Result<()> {
     let remote = if screenshot {
         None
     } else {
-        remote::Remote::start()
+        remote::Remote::start(false)
     };
+    let remote_retry = (!screenshot).then(Instant::now);
     // The app lives outside the window: closing the window leaves the
     // processing, the tray and remote control running, and `show` (tray,
     // `voice-strip ctl show`) opens it again. Quit ends everything.
@@ -941,6 +958,7 @@ fn main() -> eframe::Result<()> {
         #[cfg(target_os = "macos")]
         menubar,
         remote,
+        remote_retry,
         last_service: Instant::now(),
         quit: false,
         window_open: false,
@@ -1048,6 +1066,22 @@ impl eframe::App for Window {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.0.borrow_mut().ui(ui, frame);
+    }
+}
+
+/// Opens `url` in the default browser.
+fn open_url(url: &str) {
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    match std::process::Command::new(opener).arg(url).spawn() {
+        // Reaped off the UI thread, so it does not linger as a zombie.
+        Ok(mut child) => {
+            std::thread::spawn(move || child.wait());
+        }
+        Err(e) => eprintln!("voice-strip: cannot open {url} ({e})"),
     }
 }
 

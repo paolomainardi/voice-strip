@@ -24,6 +24,7 @@ const USAGE: &str = "usage: voice-strip ctl <command>
   model download              download the noise removal model (34.7 MB)
   show                        open the window (starts the app if closed)
   hide                        hide the window; the app keeps running
+  updates on|off              daily check for a new release (saved)
   start                       start the app without its window if closed
   quit
 

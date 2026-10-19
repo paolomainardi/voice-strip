@@ -58,6 +58,7 @@ pub enum Command {
     DownloadModel,
     Show,
     Hide,
+    SetUpdateCheck(bool),
     Start,
     Quit,
 }
@@ -119,6 +120,11 @@ impl Command {
             },
             "show" => none(Command::Show),
             "hide" => none(Command::Hide),
+            "updates" => match need("on or off")? {
+                "on" => Ok(Command::SetUpdateCheck(true)),
+                "off" => Ok(Command::SetUpdateCheck(false)),
+                a => Err(format!("updates takes on or off, got {a}")),
+            },
             "start" => none(Command::Start),
             "quit" => none(Command::Quit),
             "" => Err("empty command".into()),
@@ -171,6 +177,7 @@ pub fn apply(controller: &mut Controller, command: Command) -> Result<Effect, St
         }
         Command::Show => return Ok(Effect::Show),
         Command::Hide => return Ok(Effect::Hide),
+        Command::SetUpdateCheck(on) => controller.set_update_check(on)?,
         Command::Quit => return Ok(Effect::Quit),
     }
     Ok(Effect::None)
@@ -317,6 +324,12 @@ pub fn state_json(st: &UiState, extras: Extras) -> String {
         .is_some_and(|c| c.phase != Phase::Done);
     let _ = write!(s, ",\"calibrating\":{calibrating}");
     let _ = write!(s, ",\"calibrated\":{}", st.calibrated);
+    s.push_str(",\"update\":");
+    match &st.update_available {
+        Some(v) => push_str(&mut s, v),
+        None => s.push_str("null"),
+    }
+    let _ = write!(s, ",\"update_check\":{}", st.update_check);
     s.push_str(",\"notice\":");
     match &st.notice {
         Some(n) => push_str(&mut s, n),
@@ -482,6 +495,7 @@ mod tests {
             ("model download", C::DownloadModel),
             ("show", C::Show),
             ("hide", C::Hide),
+            ("updates off", C::SetUpdateCheck(false)),
             ("start", C::Start),
             ("quit", C::Quit),
         ];

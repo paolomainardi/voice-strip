@@ -86,6 +86,9 @@ struct Incoming {
 
 pub struct Server {
     path: PathBuf,
+    /// Held for the server's life (released by the OS if the process
+    /// dies): only its holder probes, unlinks and binds the socket.
+    _lock: std::fs::File,
     rx: Receiver<Incoming>,
     /// Clients that sent `watch`; dropped when their connection closes.
     watchers: Vec<Client>,
@@ -108,6 +111,15 @@ impl Server {
             check_owned(dir)?;
             std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
         }
+        let lock = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(path.with_extension("lock"))?;
+        if lock.try_lock().is_err() {
+            return Err(StartError::AlreadyRunning);
+        }
+        // An older version holds no lock but may still own the socket.
         if UnixStream::connect(&path).is_ok() {
             return Err(StartError::AlreadyRunning);
         }
@@ -128,6 +140,7 @@ impl Server {
             })?;
         Ok(Self {
             path,
+            _lock: lock,
             rx,
             watchers: Vec::new(),
             last: String::new(),

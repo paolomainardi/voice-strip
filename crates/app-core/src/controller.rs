@@ -53,6 +53,11 @@ pub struct UiState {
     pub model_prompt: Option<ModelUse>,
     /// The voice detector (Silero VAD), embedded and always on.
     pub voice_detector: DetectorState,
+    /// A newer release than the running one, when the update check found
+    /// one.
+    pub update_available: Option<String>,
+    /// Whether the daily update check is on.
+    pub update_check: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -143,6 +148,10 @@ pub struct Controller {
     vad_loading: Option<std::sync::mpsc::Receiver<Result<vad::SileroVad, String>>>,
     /// A started detector the engine has not accepted yet.
     vad_pending: Option<Box<dyn dsp::VoiceDetector>>,
+    /// Settings folder for the update check; `None` never checks (tests).
+    settings_dir: Option<std::path::PathBuf>,
+    update_rx: Option<std::sync::mpsc::Receiver<Result<Option<String>, String>>>,
+    last_update_check: Option<std::time::Instant>,
 }
 
 /// Noise removal is switched off when the denoiser misses more than this
@@ -179,6 +188,9 @@ impl Controller {
             input_id: crate::profiles::DEFAULT_INPUT.into(),
             vad_loading: Some(spawn_vad()),
             vad_pending: None,
+            settings_dir: None,
+            update_rx: None,
+            last_update_check: None,
             state: UiState {
                 on: true,
                 muted: false,
@@ -211,6 +223,8 @@ impl Controller {
                 },
                 model_prompt: None,
                 voice_detector: DetectorState::Loading,
+                update_available: None,
+                update_check: false,
             },
         };
         c.sync_chain();
@@ -222,6 +236,56 @@ impl Controller {
     /// a microphone is selected.
     pub fn set_profiles_dir(&mut self, dir: std::path::PathBuf) {
         self.profiles_dir = Some(dir);
+    }
+
+    /// Checks for a newer release once a day, with its on/off setting in
+    /// `dir` (see [`crate::updates`]).
+    pub fn enable_update_check(&mut self, dir: std::path::PathBuf) {
+        self.state.update_check = crate::updates::enabled(&dir);
+        self.settings_dir = Some(dir);
+    }
+
+    /// Turns the update check on or off and saves the choice.
+    pub fn set_update_check(&mut self, on: bool) -> Result<(), String> {
+        let dir = self
+            .settings_dir
+            .as_deref()
+            .ok_or("the update check is not available here")?;
+        crate::updates::set_enabled(dir, on).map_err(|e| e.to_string())?;
+        self.state.update_check = crate::updates::enabled(dir);
+        if !self.state.update_check {
+            self.state.update_available = None;
+            // A check already on its way is dropped with its answer.
+            self.update_rx = None;
+        }
+        self.last_update_check = None;
+        Ok(())
+    }
+
+    fn poll_updates(&mut self) {
+        if let Some(rx) = &self.update_rx {
+            match rx.try_recv() {
+                Ok(Ok(v)) => {
+                    if self.state.update_check {
+                        self.state.update_available = v;
+                    }
+                    self.update_rx = None;
+                }
+                // Offline or rate-limited: try again at the next interval.
+                Ok(Err(_)) | Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    self.update_rx = None;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+            return;
+        }
+        let due = self
+            .last_update_check
+            .is_none_or(|t| t.elapsed() >= crate::updates::INTERVAL);
+        if self.settings_dir.is_some() && self.state.update_check && due {
+            self.last_update_check = Some(std::time::Instant::now());
+            self.update_rx = Some(crate::updates::spawn_check());
+        }
     }
 
     /// The microphone in use changed: `id` is its device ID (`None` for the
@@ -353,6 +417,7 @@ impl Controller {
         self.pump_calibration();
         self.poll_download();
         self.poll_vad();
+        self.poll_updates();
         self.retry_pending();
         self.poll_loading();
         // Follow host block changes (the backend may report it after start).
@@ -775,8 +840,7 @@ impl Controller {
             self.miss_watch = Some((misses, now));
         } else if misses - start > MAX_MISSES {
             self.miss_watch = None;
-            self.state.notice =
-                Some("Noise removal stopped keeping up and was switched off".into());
+            self.state.notice = Some("Noise removal could not keep up: turned off".into());
             self.state.neural_denoise = None;
             self.sync_chain();
             self.push_settings();

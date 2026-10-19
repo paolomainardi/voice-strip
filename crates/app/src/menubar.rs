@@ -21,6 +21,9 @@ pub struct MenuBar {
     presets: Vec<(PresetId, CheckMenuItem)>,
     noise: Vec<(Option<DenoiseLevel>, CheckMenuItem)>,
     show: MenuItem,
+    /// "Update to x.y.z…", in the menu only while a newer release exists.
+    update: MenuItem,
+    menu: Menu,
     quit: MenuId,
     state: TrayState,
 }
@@ -70,6 +73,7 @@ impl MenuBar {
             .collect();
         let show = MenuItem::new(state.window_label(), true, None);
         let quit = MenuItem::new("Quit", true, None);
+        let update = MenuItem::new(state.update_label().unwrap_or_default(), true, None);
 
         let preset_menu = Submenu::new("Preset", true);
         for (_, item) in &presets {
@@ -93,7 +97,7 @@ impl MenuBar {
         .map_err(|e| e.to_string())?;
 
         let icon = TrayIconBuilder::new()
-            .with_menu(Box::new(menu))
+            .with_menu(Box::new(menu.clone()))
             .with_icon_templated(glyph())
             .with_tooltip("Voice Strip")
             .build()
@@ -105,6 +109,8 @@ impl MenuBar {
             presets,
             noise,
             show,
+            update,
+            menu,
             quit: quit.id().clone(),
             state,
         })
@@ -119,6 +125,8 @@ impl MenuBar {
                 out.push(TrayCmd::SetOn(!self.state.on));
             } else if id == *self.mute.id() {
                 out.push(TrayCmd::SetMuted(!self.state.muted));
+            } else if id == *self.update.id() {
+                out.push(TrayCmd::OpenUpdate);
             } else if id == *self.show.id() {
                 out.push(TrayCmd::ToggleWindow);
             } else if id == self.quit {
@@ -135,6 +143,21 @@ impl MenuBar {
     /// Mirrors `state` into the check marks. AppKit toggles a check item on
     /// click by itself, so every mark is set, not only the changed ones.
     pub fn update(&mut self, state: TrayState) {
+        if state.update != self.state.update {
+            let _ = self.menu.remove(&self.update);
+            if let Some(label) = state.update_label() {
+                self.update.set_text(label);
+                // Just before Show window.
+                let show = self.show.id().clone();
+                let at = self
+                    .menu
+                    .items()
+                    .iter()
+                    .position(|i| *i.id() == show)
+                    .unwrap_or(0);
+                let _ = self.menu.insert(&self.update, at);
+            }
+        }
         self.state = state;
         self.on.set_checked(state.on);
         self.mute.set_checked(state.muted);

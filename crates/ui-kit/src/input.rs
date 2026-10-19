@@ -59,6 +59,8 @@ pub enum Action {
     DownloadModel,
     /// Close the model dialog, cancelling a download in progress.
     DismissModelPrompt,
+    /// Open the release page of the newer version.
+    OpenUpdate,
 }
 
 /// Cursor shape the host should show.

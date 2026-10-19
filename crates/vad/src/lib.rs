@@ -76,6 +76,8 @@ type Plan = TypedRunnableModel;
 /// Audio-thread side of the voice detector.
 pub struct SileroVad {
     to_worker: rtrb::Producer<f32>,
+    /// Samples pushed since the worker was last woken.
+    unwoken: usize,
     shared: Arc<Shared>,
     wake: std::thread::Thread,
     _worker: Worker,
@@ -119,6 +121,7 @@ impl SileroVad {
             .map_err(InitError)?;
         Ok(Self {
             to_worker,
+            unwoken: 0,
             shared,
             wake,
             _worker: worker,
@@ -249,7 +252,13 @@ impl dsp::VoiceDetector for SileroVad {
             // SAFETY: all `n` slots were written above.
             unsafe { chunk.commit_all() };
         }
-        self.wake.unpark();
+        // Woken once per model chunk, not on every (possibly tiny) host
+        // block: each wakeup is a system call on the audio thread.
+        self.unwoken += block.len();
+        if self.unwoken >= CHUNK * DECIMATION {
+            self.unwoken = 0;
+            self.wake.unpark();
+        }
     }
 
     fn speech_probability(&self) -> Option<f32> {
