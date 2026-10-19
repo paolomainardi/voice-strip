@@ -624,7 +624,7 @@ impl RunningBackend for MacRunning {
 
     fn has_readers(&self) -> Option<bool> {
         let dev = hal::find(model::DEVICE_UID).ok().flatten()?;
-        hal::is_running(dev).ok()
+        hal::is_running_somewhere(dev).ok()
     }
 
     fn set_capture(&self, on: bool) {
