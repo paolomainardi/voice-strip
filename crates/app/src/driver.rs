@@ -52,7 +52,8 @@ mod mac {
 
     const HAL: &str = "/Library/Audio/Plug-Ins/HAL";
     const NAME: &str = "VoiceStrip.driver";
-    const HELPER: &str = "Core Audio Driver (VoiceStrip.driver)";
+    /// `pgrep -f` pattern (an extended regex) for the driver's helper process.
+    const HELPER: &str = r"Core Audio Driver \(VoiceStrip\.driver\)";
 
     fn installed() -> PathBuf {
         Path::new(HAL).join(NAME)
@@ -202,6 +203,17 @@ mod mac {
         status.is_ok_and(|s| s.success())
     }
 
+    /// Asks for the password before anything stops: `sudo` caches it, so a
+    /// refused password leaves the running app alone. The macOS prompt asks
+    /// when the script runs.
+    fn authorize() -> bool {
+        !std::io::stdin().is_terminal()
+            || Command::new("sudo")
+                .arg("-v")
+                .status()
+                .is_ok_and(|s| s.success())
+    }
+
     /// Other running Voice Strip processes, not this one.
     fn others() -> Vec<String> {
         let me = std::process::id().to_string();
@@ -333,32 +345,56 @@ mod mac {
         if !verify(&src) {
             return 1;
         }
-        let Some(was_running) = stop_app() else {
-            return 1;
-        };
-        let old = helper_pid();
         println!(
             "installing driver {} (asks for your password; audio stops for a moment)",
             describe(&ship)
         );
+        if !authorize() {
+            eprintln!("voice-strip driver: not installed");
+            return 1;
+        }
+        let Some(was_running) = stop_app() else {
+            return 1;
+        };
+        let restart_hint = || {
+            if was_running {
+                println!("start Voice Strip again: voice-strip");
+            }
+        };
+        let old = helper_pid();
+        // As root: copy the bundle into a private directory (in sticky
+        // /var/tmp, not the caller's TMPDIR), check that copy
+        // (the user's tree could change after `verify`), then swap it in, so
+        // a failure leaves the installed driver as it was.
+        let team = std::env::var("VOICE_STRIP_TEAM").unwrap_or_default();
+        let team_check = if team.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " && /usr/bin/codesign -dvv \"$t/{NAME}\" 2>&1 | grep -qx {}",
+                quote(Path::new(&format!("TeamIdentifier={team}")))
+            )
+        };
         let script = format!(
-            "rm -rf {dst} && cp -R {src} {hal}/ && killall coreaudiod",
-            dst = quote(&installed()),
+            "t=$(mktemp -d /var/tmp/voice-strip.XXXXXX) && trap 'rm -rf \"$t\"' EXIT && cp -R {src} \"$t/\" \\
+             && /usr/bin/codesign --verify --strict \"$t/{NAME}\"{team_check} \\
+             && rm -rf {dst} && mv \"$t/{NAME}\" {hal}/ && killall coreaudiod",
             src = quote(&src),
+            dst = quote(&installed()),
             hal = quote(Path::new(HAL)),
         );
         if !as_root(&script) {
             eprintln!("voice-strip driver: not installed");
+            restart_hint();
             return 1;
         }
         if !settle(old) {
             eprintln!("voice-strip driver: installed, but Core Audio has not loaded it yet");
+            restart_hint();
             return 1;
         }
         println!("driver installed and loaded");
-        if was_running {
-            println!("start Voice Strip again: voice-strip");
-        }
+        restart_hint();
         0
     }
 
@@ -367,10 +403,11 @@ mod mac {
             println!("driver not installed");
             return 0;
         }
-        if stop_app().is_none() {
+        println!("removing the driver (asks for your password; audio stops for a moment)");
+        if !authorize() || stop_app().is_none() {
+            eprintln!("voice-strip driver: not removed");
             return 1;
         }
-        println!("removing the driver (asks for your password; audio stops for a moment)");
         let script = format!("rm -rf {} && killall coreaudiod", quote(&installed()));
         if as_root(&script) {
             println!("driver removed");

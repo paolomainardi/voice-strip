@@ -106,17 +106,23 @@ upgrade:
     fi
     git -c advice.detachedHead=false checkout --quiet "$latest"
     cargo build --release -p app
+    driver=ok
     if [ "$(uname -s)" = Darwin ]; then
         # Replaces the installed driver only when its revision changed.
         just macos-driver
-        "{{bin}}" driver install --if-needed
+        "{{bin}}" driver install --if-needed || driver=failed
     fi
-    rm -f "$pending"
+    # The app comes back even when the driver install failed.
     if [ "$running" = 1 ]; then
         set -f # the saved arguments are words; no globbing
         # shellcheck disable=SC2086
         just start $args
     fi
+    if [ "$driver" = failed ]; then
+        echo "upgrade: now on $latest, but the driver is not installed; run: just upgrade" >&2
+        exit 1
+    fi
+    rm -f "$pending"
     echo "upgrade: now on $latest"
 
 # Start the app in the background in the advanced view; arguments go to voice-strip

@@ -4,7 +4,8 @@
 #
 # The bundle's Info.plist gets the release version and
 # VoiceStripDriverRevision, a hash of what the driver is built from (its
-# sources, Info.plist, and Cargo.toml without the version line), so
+# sources, Info.plist, its resolved dependencies and the manifests without
+# their version lines), so
 # `voice-strip driver install --if-needed` replaces an installed driver only
 # when its code changed.
 #
@@ -45,6 +46,9 @@ revision=$(
     find crates/vdev-macos-driver/src -type f -name '*.rs' | LC_ALL=C sort | xargs cat
     cat crates/vdev-macos-driver/Info.plist
     grep -v '^version = ' crates/vdev-macos-driver/Cargo.toml
+    grep -v '^version = ' Cargo.toml
+    # Dependencies as Cargo.lock resolves them, without the driver's own line.
+    cargo tree --locked -p vdev-macos-driver -e normal,build --prefix none | sed 1d | LC_ALL=C sort -u
   } | shasum -a 256 | cut -c1-16
 )
 plist="$BUNDLE/Contents/Info.plist"
