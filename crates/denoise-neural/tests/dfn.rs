@@ -173,6 +173,37 @@ fn realtime_no_misses() {
     assert!(worst < Duration::from_millis(2));
 }
 
+/// Paced on noise, the way the app runs it: one frame every 10 ms of white
+/// noise loud enough that the model never skips it. The worker misses no
+/// frame and averages under 0.6 ms per frame. On macOS this needs the work
+/// interval: without it the cores stay at a low clock and frames take
+/// about 1 ms.
+#[test]
+#[ignore = "timing-sensitive: run `just test-denoise` on an idle machine"]
+fn paced_on_noise_keeps_up() {
+    let x = noise(10 * 48_000, 0.1);
+    let mut chain = Chain::with_denoiser(
+        PathKind::Main,
+        480,
+        Some(Box::new(DfnDenoiser::spawn().unwrap())),
+    );
+    chain.set_settings(&settings());
+    let mut y = x.clone();
+    let mut next = Instant::now();
+    for b in y.chunks_mut(480) {
+        chain.process(b);
+        next += Duration::from_millis(10);
+        if let Some(d) = next.checked_duration_since(Instant::now()) {
+            std::thread::sleep(d);
+        }
+    }
+    let ms = chain.denoise_inference_ms().expect("inference ran");
+    let misses = chain.denoise_missed_frames();
+    eprintln!("dfn paced on noise: {ms:.3} ms per frame, missed frames {misses}");
+    assert_eq!(misses, 0);
+    assert!(ms < 0.6, "{ms:.3} ms per frame");
+}
+
 /// Real speech (LibriSpeech, fetched by scripts/fetch-testdata.sh) with fan
 /// noise at about 10 dB SNR: noise in pauses drops by the 25 dB attenuation
 /// limit (+-3 dB),

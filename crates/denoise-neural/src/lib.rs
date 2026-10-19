@@ -115,13 +115,23 @@ impl DfnDenoiser {
                 // Only after the model is loaded: loading is long CPU work
                 // without blocking and would exceed RLIMIT_RTTIME.
                 let priority = rt::raise();
+                // Each frame must be done within the worker's budget.
+                let interval =
+                    rt::WorkInterval::join(c"voicestrip-denoise", Duration::from_micros(2_600));
                 if tx
                     .send(Ok((to_worker, from_worker, hop, latency, priority)))
                     .is_err()
                 {
                     return;
                 }
-                run(&mut model, hop, worker_in, worker_out, &worker_shared);
+                run(
+                    &mut model,
+                    hop,
+                    worker_in,
+                    worker_out,
+                    &worker_shared,
+                    &interval,
+                );
             })
             .map_err(|e| InitError(e.to_string()))?;
         let wake = thread.thread().clone();
@@ -157,6 +167,7 @@ fn run(
     mut input: rtrb::Consumer<f32>,
     mut output: rtrb::Producer<f32>,
     shared: &Shared,
+    interval: &rt::WorkInterval,
 ) {
     let mut noisy = Array2::<f32>::zeros((1, hop));
     let mut enh = Array2::<f32>::zeros((1, hop));
@@ -184,9 +195,11 @@ fn run(
         // (exactly one hop for this model), so the fallback stays aligned
         // with the dry path instead of muting or doubling the voice.
         let t = Instant::now();
+        interval.start();
         if model.process(noisy.view(), enh.view_mut()).is_err() {
             enh.assign(&prev);
         }
+        interval.finish();
         let ms = t.elapsed().as_secs_f32() * 1000.0;
         avg_ms = if avg_ms.is_nan() {
             ms

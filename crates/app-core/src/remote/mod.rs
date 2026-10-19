@@ -297,6 +297,11 @@ pub fn state_json(st: &UiState, extras: Extras) -> String {
     opt(&mut s, st.meters.speech_probability);
     s.push_str(",\"room_db\":");
     opt(&mut s, st.meters.room_db);
+    s.push_str(",\"denoise_ms\":");
+    opt(&mut s, st.meters.denoise_inference_ms);
+    let _ = write!(s, ",\"denoise_missed\":{}", st.meters.denoise_missed_frames);
+    s.push_str(",\"vad_ms\":");
+    opt(&mut s, st.meters.vad_inference_ms);
     let _ = write!(s, ",\"intensity\":{}", st.intensity);
     let _ = write!(s, ",\"phones\":{}", st.monitor.enabled);
     s.push_str(",\"input\":");

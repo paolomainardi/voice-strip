@@ -19,6 +19,11 @@
 //! that must finish within 2.6 ms, inside the 128-sample (2.67 ms) budget
 //! the neural handoff leaves it. Any process may set it on its own threads.
 //!
+//! macOS also gets a work interval ([`WorkInterval`]): realtime priority
+//! alone does not raise the core clock, and a worker busy 0.1 ms every
+//! 10 ms runs on cores the power controller keeps at their lowest speed,
+//! about ten times slower. The interval tells it the deadline.
+//!
 //! The outcome is reported by `DfnDenoiser::priority`.
 
 /// How the worker thread is scheduled.
@@ -87,11 +92,6 @@ fn rtkit_make_realtime(pid: u64, tid: u64, prio: u32) -> bool {
 
 #[cfg(target_os = "macos")]
 pub fn raise() -> Priority {
-    #[repr(C)]
-    struct TimebaseInfo {
-        numer: u32,
-        denom: u32,
-    }
     /// thread_time_constraint_policy_data_t.
     #[repr(C)]
     struct TimeConstraint {
@@ -102,16 +102,12 @@ pub fn raise() -> Priority {
     }
     const THREAD_TIME_CONSTRAINT_POLICY: u32 = 2;
     unsafe extern "C" {
-        fn mach_timebase_info(info: *mut TimebaseInfo) -> i32;
         fn mach_thread_self() -> u32;
         fn thread_policy_set(thread: u32, flavor: u32, policy: *const i32, count: u32) -> i32;
         fn mach_port_deallocate(task: u32, name: u32) -> i32;
         static mach_task_self_: u32;
     }
-    let mut tb = TimebaseInfo { numer: 0, denom: 0 };
-    // SAFETY: valid out pointer.
-    unsafe { mach_timebase_info(&mut tb) };
-    let ticks_per_ms = 1e6 * f64::from(tb.denom) / f64::from(tb.numer.max(1));
+    let ticks_per_ms = mac::ticks_per_ms();
     let ticks = |ms: f64| (ms * ticks_per_ms) as u32;
     let policy = TimeConstraint {
         period: ticks(10.0),
@@ -142,4 +138,163 @@ pub fn raise() -> Priority {
 #[cfg(not(any(target_os = "linux", target_os = "macos")))]
 pub fn raise() -> Priority {
     Priority::Normal
+}
+
+/// A Core Audio work interval the worker thread has joined (macOS 11 or
+/// later): each frame runs between [`WorkInterval::start`] and
+/// [`WorkInterval::finish`] with its deadline, so the power controller
+/// raises the clock enough to meet it. Elsewhere it does nothing.
+pub struct WorkInterval {
+    #[cfg(target_os = "macos")]
+    imp: Option<mac::Interval>,
+}
+
+impl WorkInterval {
+    /// Creates an interval and joins it from the calling thread, which must
+    /// be the worker (after [`raise`]). `deadline` is how long a frame may
+    /// take.
+    pub fn join(name: &std::ffi::CStr, deadline: std::time::Duration) -> Self {
+        #[cfg(target_os = "macos")]
+        {
+            let imp = mac::Interval::join(name, deadline);
+            if imp.is_none() {
+                eprintln!("voice-strip: no work interval for {name:?}; the worker may not keep up");
+            }
+            Self { imp }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (name, deadline);
+            Self {}
+        }
+    }
+
+    /// A frame starts now.
+    pub fn start(&self) {
+        #[cfg(target_os = "macos")]
+        if let Some(i) = &self.imp {
+            i.start();
+        }
+    }
+
+    /// The frame is done.
+    pub fn finish(&self) {
+        #[cfg(target_os = "macos")]
+        if let Some(i) = &self.imp {
+            i.finish();
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod mac {
+    use std::ffi::{CStr, c_char, c_int, c_void};
+
+    /// os_workgroup_join_token_s is 40 bytes; more is harmless.
+    #[repr(C, align(8))]
+    struct Token([u8; 64]);
+
+    const OS_CLOCK_MACH_ABSOLUTE_TIME: u32 = 32;
+
+    #[link(name = "AudioToolbox", kind = "framework")]
+    unsafe extern "C" {
+        fn AudioWorkIntervalCreate(
+            name: *const c_char,
+            clock: u32,
+            attr: *mut c_void,
+        ) -> *mut c_void;
+    }
+    unsafe extern "C" {
+        fn os_workgroup_join(wg: *mut c_void, token: *mut Token) -> c_int;
+        fn os_workgroup_leave(wg: *mut c_void, token: *mut Token);
+        fn os_workgroup_interval_start(
+            wg: *mut c_void,
+            start: u64,
+            deadline: u64,
+            data: *mut c_void,
+        ) -> c_int;
+        fn os_workgroup_interval_finish(wg: *mut c_void, data: *mut c_void) -> c_int;
+        fn os_release(object: *mut c_void);
+        fn mach_absolute_time() -> u64;
+        fn mach_timebase_info(info: *mut [u32; 2]) -> c_int;
+    }
+
+    /// Mach absolute time ticks per millisecond.
+    pub fn ticks_per_ms() -> f64 {
+        let mut tb = [0u32; 2];
+        // SAFETY: valid out pointer (numer, denom).
+        unsafe { mach_timebase_info(&mut tb) };
+        1e6 * f64::from(tb[1]) / f64::from(tb[0].max(1))
+    }
+
+    pub struct Interval {
+        wg: *mut c_void,
+        token: Box<Token>,
+        /// Whether the current frame's interval started, so `finish` pairs
+        /// with it.
+        started: std::cell::Cell<bool>,
+        /// The deadline in mach ticks.
+        ticks: u64,
+    }
+
+    impl Interval {
+        pub fn join(name: &CStr, deadline: std::time::Duration) -> Option<Self> {
+            // SAFETY: valid C string; a null attribute means the defaults.
+            let wg = unsafe {
+                AudioWorkIntervalCreate(
+                    name.as_ptr(),
+                    OS_CLOCK_MACH_ABSOLUTE_TIME,
+                    std::ptr::null_mut(),
+                )
+            };
+            if wg.is_null() {
+                return None;
+            }
+            let mut token = Box::new(Token([0; 64]));
+            // SAFETY: a live workgroup and a token buffer that outlives the
+            // membership; joined from the calling thread.
+            if unsafe { os_workgroup_join(wg, &mut *token) } != 0 {
+                // SAFETY: the reference AudioWorkIntervalCreate returned.
+                unsafe { os_release(wg) };
+                return None;
+            }
+            let ticks = (deadline.as_secs_f64() * 1e3 * ticks_per_ms()) as u64;
+            Some(Self {
+                wg,
+                token,
+                started: std::cell::Cell::new(false),
+                ticks,
+            })
+        }
+
+        pub fn start(&self) {
+            // SAFETY: a workgroup this thread joined; null data is allowed.
+            let ok = unsafe {
+                let now = mach_absolute_time();
+                os_workgroup_interval_start(self.wg, now, now + self.ticks, std::ptr::null_mut())
+                    == 0
+            };
+            self.started.set(ok);
+        }
+
+        pub fn finish(&self) {
+            if !self.started.replace(false) {
+                return;
+            }
+            // SAFETY: as in `start`.
+            unsafe { os_workgroup_interval_finish(self.wg, std::ptr::null_mut()) };
+        }
+    }
+
+    impl Drop for Interval {
+        /// Dropped on the thread that joined, before it exits.
+        fn drop(&mut self) {
+            // SAFETY: leaves the membership made in `join`, on the same
+            // thread, then drops the creation reference.
+            unsafe {
+                os_workgroup_leave(self.wg, &mut *self.token);
+                os_release(self.wg);
+            }
+        }
+    }
 }
