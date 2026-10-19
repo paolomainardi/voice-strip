@@ -3,8 +3,8 @@
 //! events that [`MenuBar::commands`] turns into [`TrayCmd`]s; the item
 //! mirrors the controller state through [`MenuBar::update`].
 //!
-//! AppKit delivers the clicks only while its event loop runs: eframe's loop
-//! while the window is open, [`pump`] in the background loop otherwise.
+//! AppKit delivers the clicks only while its event loop runs, so on macOS
+//! the window is hidden, never closed, and eframe's loop keeps running.
 
 use app_core::{DenoiseLevel, PresetId};
 use tray_icon::menu::{
@@ -167,33 +167,6 @@ impl MenuBar {
         }
         for (l, item) in &self.noise {
             item.set_checked(*l == state.noise);
-        }
-    }
-}
-
-/// Runs AppKit's event loop for `d` without a window, so menu bar clicks
-/// are handled. Makes sure the application object exists (a `--background`
-/// start has opened no window yet).
-pub fn pump(d: std::time::Duration) {
-    use objc2_app_kit::{NSApplication, NSEventMask};
-    use objc2_foundation::{NSDate, NSDefaultRunLoopMode};
-
-    let Some(mtm) = objc2::MainThreadMarker::new() else {
-        std::thread::sleep(d);
-        return;
-    };
-    let app = NSApplication::sharedApplication(mtm);
-    let until = NSDate::dateWithTimeIntervalSinceNow(d.as_secs_f64());
-    // SAFETY: called on the main thread with the shared application; the
-    // events are handed back to it unchanged.
-    unsafe {
-        while let Some(event) = app.nextEventMatchingMask_untilDate_inMode_dequeue(
-            NSEventMask::Any,
-            Some(&until),
-            NSDefaultRunLoopMode,
-            true,
-        ) {
-            app.sendEvent(&event);
         }
     }
 }
