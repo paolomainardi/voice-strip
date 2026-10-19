@@ -1,6 +1,12 @@
 //! First-run calibration: 5 s of silence, then 10 s of speech, from the raw
 //! (pre-chain) input. Produces a [`VoiceProfile`]. Runs on a non-realtime
 //! thread; it is fed from the engine's input scope queue.
+//!
+//! The room is measured as the processing hears it: through the input
+//! stage's lowest high-pass (70 Hz, fourth order), then K-weighted like the
+//! speech, so DC offset and rumble do not count as noise, and as the
+//! median of 100 ms windows, so a click or a cough during the silence does
+//! not either.
 
 use dsp::loudness::KWeighting;
 use dsp::util::{Biquad, Coefs};
@@ -68,7 +74,10 @@ impl std::error::Error for CalibrationError {}
 pub struct Calibrator {
     phase: Phase,
     count: usize,
-    silence_sq: f64,
+    /// K-weighted mean square of each 100 ms window of the silence.
+    silence_hops: Vec<f64>,
+    silence_hp: [Biquad; 2],
+    silence_kw: KWeighting,
     kw: KWeighting,
     hop_acc: f64,
     hop_n: usize,
@@ -96,7 +105,12 @@ impl Calibrator {
         Self {
             phase: Phase::Silence,
             count: 0,
-            silence_sq: 0.0,
+            silence_hops: Vec::with_capacity(SILENCE_SECONDS * 10),
+            silence_hp: [
+                Biquad::new(Coefs::highpass(70.0, 0.541)),
+                Biquad::new(Coefs::highpass(70.0, 1.307)),
+            ],
+            silence_kw: KWeighting::new(),
             kw: KWeighting::new(),
             hop_acc: 0.0,
             hop_n: 0,
@@ -134,11 +148,22 @@ impl Calibrator {
         for &x in samples {
             match self.phase {
                 Phase::Silence => {
-                    self.silence_sq += (x as f64) * (x as f64);
+                    let h = self.silence_hp[0].tick(x);
+                    let h = self.silence_hp[1].tick(h);
+                    let k = self.silence_kw.tick(h) as f64;
+                    self.hop_acc += k * k;
+                    self.hop_n += 1;
+                    if self.hop_n == HOP {
+                        self.silence_hops.push(self.hop_acc / HOP as f64);
+                        self.hop_acc = 0.0;
+                        self.hop_n = 0;
+                    }
                     self.count += 1;
                     if self.count == SILENCE_SECONDS * FS {
                         self.phase = Phase::Speech;
                         self.count = 0;
+                        self.hop_acc = 0.0;
+                        self.hop_n = 0;
                     }
                 }
                 Phase::Speech => {
@@ -178,14 +203,15 @@ impl Calibrator {
 
     fn analyze(&self) -> Result<VoiceProfile, CalibrationError> {
         let speech_lufs = gated_loudness(&self.hops);
-        let noise_db = (10.0
-            * (self.silence_sq / (SILENCE_SECONDS * FS) as f64)
-                .max(1e-14)
-                .log10()) as f32;
+        let mut hops = self.silence_hops.clone();
+        hops.sort_by(f64::total_cmp);
+        let room = hops.get(hops.len() / 2).copied().unwrap_or(0.0);
+        // K-weighted mean square, dB: the room's level as the speech's.
+        let noise_db = (10.0 * room.max(1e-14).log10()) as f32;
         if speech_lufs < -60.0 {
             return Err(CalibrationError::TooQuiet { speech_lufs });
         }
-        let snr_db = speech_lufs - noise_db;
+        let snr_db = speech_lufs - (noise_db - 0.691);
         if snr_db < MIN_SNR_DB {
             return Err(CalibrationError::TooNoisy { snr_db });
         }
@@ -329,6 +355,40 @@ mod tests {
         for v in p.eq_correction_db {
             assert!(v.abs() <= MAX_EQ_CORRECTION_DB);
         }
+    }
+
+    /// Rumble, DC offset and one loud click in the silence: not noise
+    /// anyone hears. Calibration succeeds with the same floor as without
+    /// them, within 3 dB.
+    #[test]
+    fn rumble_dc_and_a_click_are_not_room_noise() {
+        let clean = calibrate(0.3, 0.001, 6500.0).expect("clean room calibrates");
+        let mut rng = Rng(9);
+        let mut c = Calibrator::new();
+        let silence: Vec<f32> = (0..SILENCE_SECONDS * FS)
+            .map(|i| {
+                let t = i as f32 / FS as f32;
+                let click = if (FS..FS + 480).contains(&i) {
+                    0.5
+                } else {
+                    0.0
+                };
+                0.001 * rng.next() + 0.02 + 0.03 * (std::f32::consts::TAU * 12.0 * t).sin() + click
+            })
+            .collect();
+        assert_eq!(c.feed(&silence), Phase::Speech);
+        let mut speech = speechy(SPEECH_SECONDS * FS, 0.3, 6500.0, &mut rng);
+        for v in speech.iter_mut() {
+            *v += 0.001 * rng.next();
+        }
+        assert_eq!(c.feed(&speech), Phase::Done);
+        let p = c.result().cloned().expect("result").expect("not too noisy");
+        assert!(
+            (p.noise_floor_db - clean.noise_floor_db).abs() < 3.0,
+            "{} vs {}",
+            p.noise_floor_db,
+            clean.noise_floor_db
+        );
     }
 
     #[test]
