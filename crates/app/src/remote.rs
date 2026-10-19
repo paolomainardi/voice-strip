@@ -49,7 +49,9 @@ impl Remote {
         server.poll(|command| {
             match remote::apply(controller, command) {
                 Ok(Effect::None) => {}
-                Ok(e) => effect = e,
+                // A quit asked for in the same batch is never undone.
+                Ok(e) if effect != Effect::Quit => effect = e,
+                Ok(_) => {}
                 Err(e) => return remote::error_json(&e),
             }
             remote::state_json(

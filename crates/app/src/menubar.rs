@@ -20,7 +20,7 @@ pub struct MenuBar {
     mute: CheckMenuItem,
     presets: Vec<(PresetId, CheckMenuItem)>,
     noise: Vec<(Option<DenoiseLevel>, CheckMenuItem)>,
-    show: MenuId,
+    show: MenuItem,
     quit: MenuId,
     state: TrayState,
 }
@@ -68,7 +68,7 @@ impl MenuBar {
                 (l, CheckMenuItem::new(label, true, l == state.noise, None))
             })
             .collect();
-        let show = MenuItem::new("Show window", true, None);
+        let show = MenuItem::new(state.window_label(), true, None);
         let quit = MenuItem::new("Quit", true, None);
 
         let preset_menu = Submenu::new("Preset", true);
@@ -104,7 +104,7 @@ impl MenuBar {
             mute,
             presets,
             noise,
-            show: show.id().clone(),
+            show,
             quit: quit.id().clone(),
             state,
         })
@@ -119,8 +119,8 @@ impl MenuBar {
                 out.push(TrayCmd::SetOn(!self.state.on));
             } else if id == *self.mute.id() {
                 out.push(TrayCmd::SetMuted(!self.state.muted));
-            } else if id == self.show {
-                out.push(TrayCmd::Show);
+            } else if id == *self.show.id() {
+                out.push(TrayCmd::ToggleWindow);
             } else if id == self.quit {
                 out.push(TrayCmd::Quit);
             } else if let Some((p, _)) = self.presets.iter().find(|(_, i)| *i.id() == id) {
@@ -138,6 +138,7 @@ impl MenuBar {
         self.state = state;
         self.on.set_checked(state.on);
         self.mute.set_checked(state.muted);
+        self.show.set_text(state.window_label());
         for (p, item) in &self.presets {
             item.set_checked(*p == state.preset);
         }

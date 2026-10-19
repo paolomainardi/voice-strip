@@ -186,7 +186,7 @@ Calibrations live in `~/.config/voice-strip/profiles/` on Linux (`$XDG_CONFIG_HO
 - **Microphone and headphones.** Pick them in the app, or start with `--input` and `--headphones` (see `just devices`).
 - **Presets and noise removal.** A preset sets the tone and loudness target. The three gauges under the presets show how much it compresses, brightens and keeps the warmth of your voice, and follow the Intensity knob; hover a preset to read what it is for. Noise removal adds about 20 ms of delay: it is light in Broadcast and Podcast, medium in Stream, strong in Call and off in Narration.
 - **Headphone monitor.** The headphones get a lighter chain than the virtual microphone, without noise removal, saturation or leveler, to keep the delay low. Bluetooth headphones add 150 ms or more of their own: use wired ones to monitor.
-- **Background.** Closing the window keeps the app running: processing, the virtual microphone, the tray or menu bar item and remote control go on. Show window brings it back; Quit ends it. `voice-strip --background` starts without the window.
+- **Background.** Hiding the window keeps the app running: processing, the virtual microphone, the tray or menu bar item and remote control go on. Cmd+W on macOS or Ctrl+W on Linux hides it, as does closing it from the window manager; the Show window item in the tray or menu bar toggles it. Quit ends the app. `voice-strip --background` starts without the window.
 - **Without audio.** `just run --backend sim` shows the UI with a simulated signal.
 
 ### Remote control
@@ -204,6 +204,7 @@ voice-strip ctl model download         # download the noise removal model
 voice-strip ctl intensity 70           # 0 to 100
 voice-strip ctl phones toggle          # headphone monitor: on off toggle
 voice-strip ctl show                   # open the window (starts the app)
+voice-strip ctl hide                   # hide the window; the app keeps running
 voice-strip ctl start                  # start the app in the background, without its window
 voice-strip ctl quit
 ```
