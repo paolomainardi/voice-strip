@@ -4,6 +4,14 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- `voice-strip ctl status` reports the noise removal and voice detection run times and the frames noise removal missed.
+
+### Fixed
+
+- Noise removal switched itself off on macOS after 15 to 30 s: it now tells macOS its deadline, so the cores keep up.
+
 ## [0.3.0] - 2026-10-18
 
 ### Added
