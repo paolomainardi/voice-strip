@@ -51,16 +51,4 @@ pub trait RunningBackend: Send {
     /// Switches the headphones used by the monitor path (`None`: system
     /// default). Backends that cannot switch ignore it.
     fn set_monitor_output(&self, _output: Option<&str>) {}
-    /// Whether some application reads the virtual microphone now; `None`
-    /// when the backend cannot tell (capture then never pauses).
-    fn has_readers(&self) -> Option<bool> {
-        None
-    }
-    /// Pauses (`false`) or resumes capture of the physical microphone.
-    /// Paused, the microphone is released, so its in-use indicator goes
-    /// off, and nothing is processed. Returns false when it could not be
-    /// done (the caller retries).
-    fn set_capture(&self, _on: bool) -> bool {
-        true
-    }
 }

@@ -162,6 +162,7 @@ struct State {
     /// Capture wanted: off, the microphone link is removed so the source
     /// can suspend and nothing runs.
     capture_on: bool,
+    standby: engine::standby::Policy,
 }
 
 impl State {
@@ -219,7 +220,8 @@ impl State {
         self.sync_monitor();
     }
 
-    /// Pauses or resumes capture (see [`RunningBackend::set_capture`]).
+    /// Pauses or resumes capture: paused, the microphone link is gone, so
+    /// the source can suspend, and the filter is inactive.
     fn set_capture(&mut self, on: bool) {
         if self.capture_on == on {
             return;
@@ -417,10 +419,17 @@ impl State {
 
     /// Periodic: links, monitor port lifecycle and latency declaration.
     fn poll(&mut self) {
-        self.status.readers.store(
-            self.graph.readers().unwrap_or(usize::MAX),
-            Ordering::Release,
-        );
+        let readers = self.graph.readers();
+        self.status
+            .readers
+            .store(readers.unwrap_or(usize::MAX), Ordering::Release);
+        if let Some(standby) = self
+            .standby
+            .update(readers.map(|n| n > 0), self.watch.capture_held())
+        {
+            self.set_capture(!standby);
+            self.watch.set_standby(standby);
+        }
         self.sync_capture();
         self.sync_output();
         let wanted = self.watch.monitor_wanted();
@@ -613,6 +622,7 @@ pub(crate) fn run(
         metadata: None,
         reported_latency,
         capture_on: true,
+        standby: engine::standby::Policy::new(),
     }));
 
     let _core_listener = {
@@ -698,7 +708,6 @@ pub(crate) fn run(
             Command::Stop => mainloop.quit(),
             Command::SetInput(input) => state.borrow_mut().set_input(input),
             Command::SetMonitorOutput(out) => state.borrow_mut().set_monitor_output(out),
-            Command::SetCapture(on) => state.borrow_mut().set_capture(on),
         }
     });
 

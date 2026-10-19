@@ -34,6 +34,10 @@ struct Shared {
     /// Capture resumed after a pause: the main chain drops what its
     /// neural stage had in flight from before.
     resumed: AtomicBool,
+    /// Capture paused by the backend's standby policy.
+    standby: AtomicBool,
+    /// Capture must stay on (a calibration runs), whatever the readers.
+    capture_held: AtomicBool,
     /// Latest `MonitorConfig::enabled` requested by the UI. Backends poll it
     /// from a non-realtime thread to create or drop the monitor stream.
     monitor_wanted: AtomicBool,
@@ -109,10 +113,15 @@ impl EngineHandle {
         while self.retired_rx.pop().is_ok() {}
     }
 
-    /// Capture resumes after a pause (standby): the next block starts the
-    /// neural stage clean instead of playing frames from before the pause.
-    pub fn capture_resumed(&self) {
-        self.shared.resumed.store(true, Ordering::Release);
+    /// Whether the backend paused capture because nobody reads the virtual
+    /// microphone.
+    pub fn is_standby(&self) -> bool {
+        self.shared.standby.load(Ordering::Acquire)
+    }
+
+    /// Keeps capture on whatever the readers (a calibration runs).
+    pub fn set_capture_held(&self, held: bool) {
+        self.shared.capture_held.store(held, Ordering::Release);
     }
 
     pub fn latest_meters(&mut self) -> Option<MeterFrame> {
@@ -167,6 +176,22 @@ impl ProcessorWatch {
     pub fn monitor_latency_samples(&self) -> usize {
         self.0.monitor_latency.load(Ordering::Acquire)
     }
+
+    /// Something other than readers needs capture: the monitor or a
+    /// calibration.
+    pub fn capture_held(&self) -> bool {
+        self.monitor_wanted() || self.0.capture_held.load(Ordering::Acquire)
+    }
+
+    /// The backend paused (`true`) or resumed capture. A resume makes the
+    /// next block start the neural stage clean instead of playing frames
+    /// from before the pause.
+    pub fn set_standby(&self, standby: bool) {
+        self.0.standby.store(standby, Ordering::Release);
+        if !standby {
+            self.0.resumed.store(true, Ordering::Release);
+        }
+    }
 }
 
 /// Audio-thread side. Owned by the backend's realtime callback.
@@ -218,6 +243,8 @@ pub fn new_engine_with(
     let shared = Arc::new(Shared {
         running: AtomicBool::new(false),
         resumed: AtomicBool::new(false),
+        standby: AtomicBool::new(false),
+        capture_held: AtomicBool::new(false),
         monitor_wanted: AtomicBool::new(false),
         main_latency: AtomicUsize::new(main.latency_samples()),
         monitor_latency: AtomicUsize::new(monitor.latency_samples()),

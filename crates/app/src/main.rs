@@ -162,13 +162,6 @@ struct VoiceStrip {
     /// The active view's static layer, tessellated once and reused every
     /// frame until its key changes.
     static_layer: Option<StaticLayer>,
-    /// Last time something needed the microphone (an application reading
-    /// Voice Strip, the monitor, calibration); capture pauses
-    /// [`STANDBY_AFTER`] later.
-    needed_at: Instant,
-    /// Readers as last asked of the backend, and when: asked twice a second
-    /// (on macOS each question walks the device list).
-    readers: (Option<bool>, Instant),
     /// The platform backend, kept to list devices again.
     devices: Box<dyn AudioBackend>,
     inputs: Vec<DeviceInfo>,
@@ -591,7 +584,6 @@ impl VoiceStrip {
             }
             self.controller.tick();
             self.feed_scopes();
-            self.standby();
         }
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         let mut effect = self.tray();
@@ -624,41 +616,12 @@ impl VoiceStrip {
         effect
     }
 
-    /// Releases the microphone while nobody needs it, and takes it back
-    /// as soon as someone does.
-    fn standby(&mut self) {
-        let Some(b) = &self.backend else { return };
-        if self.readers.1.elapsed() >= std::time::Duration::from_millis(500) {
-            self.readers = (b.has_readers(), Instant::now());
-        }
-        let st = self.controller.state();
-        let needed =
-            self.readers.0 != Some(false) || st.monitor.enabled || self.controller.is_calibrating();
-        if needed {
-            self.needed_at = Instant::now();
-        }
-        let standby = !needed && self.needed_at.elapsed() >= STANDBY_AFTER;
-        if standby != st.standby {
-            // Not done (a failed resume): stay as is and retry next pass.
-            if !b.set_capture(!standby) {
-                return;
-            }
-            if !standby {
-                self.controller.capture_resumed();
-            }
-            let st = self.controller.state_mut();
-            st.standby = standby;
-            // No more meter frames: the needles and lamps fall to rest.
-            st.meters = engine::MeterFrame::silent(&st.meters);
-        }
-    }
-
     /// 30 frames a second for the meters; 4 in standby once the needles
     /// have fallen to rest, since nothing moves (input still repaints at
     /// once).
     fn repaint_period(&self) -> std::time::Duration {
-        let resting = STANDBY_AFTER + std::time::Duration::from_secs(2);
-        if self.controller.state().standby && self.needed_at.elapsed() >= resting {
+        let resting = std::time::Duration::from_secs(2);
+        if self.controller.standby_for().is_some_and(|t| t >= resting) {
             std::time::Duration::from_millis(250)
         } else {
             std::time::Duration::from_millis(33)
@@ -763,7 +726,6 @@ impl eframe::App for VoiceStrip {
                 size: (size.0.to_bits(), size.1.to_bits()),
                 scale: self.scale.to_bits(),
                 pixels_per_point: ctx.pixels_per_point().to_bits(),
-                font_atlas: ctx.fonts(|f| f.font_image_size()),
             };
             if self.static_layer.as_ref().is_none_or(|l| l.key != key) {
                 let mut sp = EguiPainter::new(ctx, screen);
@@ -775,6 +737,7 @@ impl eframe::App for VoiceStrip {
                 for (clip, mesh) in &layer.meshes {
                     p.shapes.push((*clip, egui::Shape::Mesh(mesh.clone())));
                 }
+                p.shapes.extend(layer.text.iter().cloned());
             }
             view.paint_dynamic(&mut p, &state);
             if ModelDialog::is_open(&state) {
@@ -1014,8 +977,6 @@ fn main() -> eframe::Result<()> {
         active,
         backend: running,
         static_layer: None,
-        needed_at: Instant::now(),
-        readers: (None, Instant::now()),
         devices: backend,
         inputs,
         outputs,
@@ -1155,15 +1116,17 @@ struct StaticKey {
     size: (u32, u32),
     scale: u32,
     pixels_per_point: u32,
-    /// Text meshes hold atlas coordinates: a grown atlas moves them.
-    font_atlas: [usize; 2],
 }
 
-/// The static layer as triangles: drawing it costs a copy, not a
-/// tessellation of every path and glyph.
+/// The static layer's paths as triangles, so drawing them costs a copy,
+/// not a tessellation. Text stays text: its triangles point into the font
+/// atlas, which egui repacks as glyphs come and go, and egui caches laid
+/// out text anyway. Text is drawn after the paths, as static labels sit on
+/// the faceplate.
 struct StaticLayer {
     key: StaticKey,
     meshes: Vec<(egui::Rect, std::sync::Arc<egui::Mesh>)>,
+    text: Vec<(egui::Rect, egui::Shape)>,
 }
 
 impl StaticLayer {
@@ -1172,6 +1135,9 @@ impl StaticLayer {
         key: StaticKey,
         shapes: Vec<(egui::Rect, egui::Shape)>,
     ) -> Self {
+        let (text, shapes): (Vec<_>, Vec<_>) = shapes
+            .into_iter()
+            .partition(|(_, s)| matches!(s, egui::Shape::Text(_)));
         let shapes = shapes
             .into_iter()
             .map(|(clip_rect, shape)| egui::epaint::ClippedShape { clip_rect, shape })
@@ -1184,13 +1150,9 @@ impl StaticLayer {
                 egui::epaint::Primitive::Callback(_) => None,
             })
             .collect();
-        Self { key, meshes }
+        Self { key, meshes, text }
     }
 }
-
-/// How long the microphone stays open after the last application stopped
-/// reading Voice Strip.
-const STANDBY_AFTER: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Opens `url` in the default browser.
 fn open_url(url: &str) {

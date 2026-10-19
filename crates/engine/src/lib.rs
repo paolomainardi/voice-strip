@@ -8,6 +8,7 @@ pub mod denormals;
 pub mod meters;
 pub mod processor;
 pub mod sim;
+pub mod standby;
 
 pub use backend::{AudioBackend, BackendError, DeviceInfo, RunningBackend};
 pub use meters::MeterFrame;
