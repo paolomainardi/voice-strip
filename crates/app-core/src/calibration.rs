@@ -2,11 +2,10 @@
 //! (pre-chain) input. Produces a [`VoiceProfile`]. Runs on a non-realtime
 //! thread; it is fed from the engine's input scope queue.
 //!
-//! The room is measured as the processing hears it: through the input
-//! stage's lowest high-pass (70 Hz, fourth order), then K-weighted like the
-//! speech, so DC offset and rumble do not count as noise, and as the
-//! median of 100 ms windows, so a click or a cough during the silence does
-//! not either.
+//! The room is measured as the expander measures it: RMS after the input
+//! stage's lowest high-pass (70 Hz, fourth order), so DC offset and rumble
+//! do not count as noise, and as the median of 100 ms windows, so a click
+//! or a cough during the silence does not either.
 
 use dsp::loudness::KWeighting;
 use dsp::util::{Biquad, Coefs};
@@ -74,10 +73,9 @@ impl std::error::Error for CalibrationError {}
 pub struct Calibrator {
     phase: Phase,
     count: usize,
-    /// K-weighted mean square of each 100 ms window of the silence.
+    /// Mean square of each 100 ms window of the high-passed silence.
     silence_hops: Vec<f64>,
     silence_hp: [Biquad; 2],
-    silence_kw: KWeighting,
     kw: KWeighting,
     hop_acc: f64,
     hop_n: usize,
@@ -110,7 +108,6 @@ impl Calibrator {
                 Biquad::new(Coefs::highpass(70.0, 0.541)),
                 Biquad::new(Coefs::highpass(70.0, 1.307)),
             ],
-            silence_kw: KWeighting::new(),
             kw: KWeighting::new(),
             hop_acc: 0.0,
             hop_n: 0,
@@ -149,9 +146,8 @@ impl Calibrator {
             match self.phase {
                 Phase::Silence => {
                     let h = self.silence_hp[0].tick(x);
-                    let h = self.silence_hp[1].tick(h);
-                    let k = self.silence_kw.tick(h) as f64;
-                    self.hop_acc += k * k;
+                    let h = self.silence_hp[1].tick(h) as f64;
+                    self.hop_acc += h * h;
                     self.hop_n += 1;
                     if self.hop_n == HOP {
                         self.silence_hops.push(self.hop_acc / HOP as f64);
@@ -206,7 +202,7 @@ impl Calibrator {
         let mut hops = self.silence_hops.clone();
         hops.sort_by(f64::total_cmp);
         let room = hops.get(hops.len() / 2).copied().unwrap_or(0.0);
-        // K-weighted mean square, dB: the room's level as the speech's.
+        // RMS dBFS of the high-passed room, as the expander reads it.
         let noise_db = (10.0 * room.max(1e-14).log10()) as f32;
         if speech_lufs < -60.0 {
             return Err(CalibrationError::TooQuiet { speech_lufs });
