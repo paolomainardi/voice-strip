@@ -92,11 +92,6 @@ fn rtkit_make_realtime(pid: u64, tid: u64, prio: u32) -> bool {
 
 #[cfg(target_os = "macos")]
 pub fn raise() -> Priority {
-    #[repr(C)]
-    struct TimebaseInfo {
-        numer: u32,
-        denom: u32,
-    }
     /// thread_time_constraint_policy_data_t.
     #[repr(C)]
     struct TimeConstraint {
@@ -107,16 +102,12 @@ pub fn raise() -> Priority {
     }
     const THREAD_TIME_CONSTRAINT_POLICY: u32 = 2;
     unsafe extern "C" {
-        fn mach_timebase_info(info: *mut TimebaseInfo) -> i32;
         fn mach_thread_self() -> u32;
         fn thread_policy_set(thread: u32, flavor: u32, policy: *const i32, count: u32) -> i32;
         fn mach_port_deallocate(task: u32, name: u32) -> i32;
         static mach_task_self_: u32;
     }
-    let mut tb = TimebaseInfo { numer: 0, denom: 0 };
-    // SAFETY: valid out pointer.
-    unsafe { mach_timebase_info(&mut tb) };
-    let ticks_per_ms = 1e6 * f64::from(tb.denom) / f64::from(tb.numer.max(1));
+    let ticks_per_ms = mac::ticks_per_ms();
     let ticks = |ms: f64| (ms * ticks_per_ms) as u32;
     let policy = TimeConstraint {
         period: ticks(10.0),
@@ -238,6 +229,14 @@ mod mac {
         fn mach_timebase_info(info: *mut [u32; 2]) -> c_int;
     }
 
+    /// Mach absolute time ticks per millisecond.
+    pub fn ticks_per_ms() -> f64 {
+        let mut tb = [0u32; 2];
+        // SAFETY: valid out pointer (numer, denom).
+        unsafe { mach_timebase_info(&mut tb) };
+        1e6 * f64::from(tb[1]) / f64::from(tb[0].max(1))
+    }
+
     pub struct Interval {
         wg: *mut c_void,
         token: Box<Token>,
@@ -266,11 +265,7 @@ mod mac {
                 unsafe { os_release(wg) };
                 return None;
             }
-            let mut tb = [0u32; 2];
-            // SAFETY: valid out pointer (numer, denom).
-            unsafe { mach_timebase_info(&mut tb) };
-            let ticks = (deadline.as_nanos() as u64).saturating_mul(u64::from(tb[1]))
-                / u64::from(tb[0].max(1));
+            let ticks = (deadline.as_secs_f64() * 1e3 * ticks_per_ms()) as u64;
             Some(Self { wg, token, ticks })
         }
 
