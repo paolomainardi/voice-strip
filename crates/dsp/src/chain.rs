@@ -333,6 +333,14 @@ impl Chain {
         meters
     }
 
+    /// Audio stopped arriving for a while (capture paused): the neural
+    /// stage drops the frames it had in flight, which belong to the old
+    /// timeline. The other stages keep their state, the leveler its gain.
+    /// Realtime-safe.
+    pub fn resume_after_gap(&mut self) {
+        self.denoise.reset();
+    }
+
     /// Whether the output is the dry signal only (bypass settled), when
     /// the stages are not run and the voice detector need not be fed.
     pub fn is_fully_bypassed(&self) -> bool {

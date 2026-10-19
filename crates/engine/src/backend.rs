@@ -58,6 +58,9 @@ pub trait RunningBackend: Send {
     }
     /// Pauses (`false`) or resumes capture of the physical microphone.
     /// Paused, the microphone is released, so its in-use indicator goes
-    /// off, and nothing is processed.
-    fn set_capture(&self, _on: bool) {}
+    /// off, and nothing is processed. Returns false when it could not be
+    /// done (the caller retries).
+    fn set_capture(&self, _on: bool) -> bool {
+        true
+    }
 }

@@ -31,6 +31,9 @@ impl Default for MonitorConfig {
 /// Atomics only.
 struct Shared {
     running: AtomicBool,
+    /// Capture resumed after a pause: the main chain drops what its
+    /// neural stage had in flight from before.
+    resumed: AtomicBool,
     /// Latest `MonitorConfig::enabled` requested by the UI. Backends poll it
     /// from a non-realtime thread to create or drop the monitor stream.
     monitor_wanted: AtomicBool,
@@ -104,6 +107,12 @@ impl EngineHandle {
     /// Drops chains the audio thread has swapped out.
     pub fn drop_retired(&mut self) {
         while self.retired_rx.pop().is_ok() {}
+    }
+
+    /// Capture resumes after a pause (standby): the next block starts the
+    /// neural stage clean instead of playing frames from before the pause.
+    pub fn capture_resumed(&self) {
+        self.shared.resumed.store(true, Ordering::Release);
     }
 
     pub fn latest_meters(&mut self) -> Option<MeterFrame> {
@@ -208,6 +217,7 @@ pub fn new_engine_with(
     let monitor = Box::new(Chain::new(PathKind::Monitor, dsp::BLOCK_MONITOR));
     let shared = Arc::new(Shared {
         running: AtomicBool::new(false),
+        resumed: AtomicBool::new(false),
         monitor_wanted: AtomicBool::new(false),
         main_latency: AtomicUsize::new(main.latency_samples()),
         monitor_latency: AtomicUsize::new(monitor.latency_samples()),
@@ -284,6 +294,9 @@ impl AudioProcessor {
         monitor_out: Option<&mut [f32]>,
     ) {
         let _ftz = crate::denormals::FlushDenormals::new();
+        if self.shared.resumed.swap(false, Ordering::AcqRel) {
+            self.main.resume_after_gap();
+        }
         if let Some(c) = self.spare.take()
             && let Err(rtrb::PushError::Full(c)) = self.retired_tx.push(c)
         {

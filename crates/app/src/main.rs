@@ -163,6 +163,9 @@ struct VoiceStrip {
     /// Voice Strip, the monitor, calibration); capture pauses
     /// [`STANDBY_AFTER`] later.
     needed_at: Instant,
+    /// Readers as last asked of the backend, and when: asked twice a second
+    /// (on macOS each question walks the device list).
+    readers: (Option<bool>, Instant),
     /// The platform backend, kept to list devices again.
     devices: Box<dyn AudioBackend>,
     inputs: Vec<DeviceInfo>,
@@ -622,16 +625,24 @@ impl VoiceStrip {
     /// as soon as someone does.
     fn standby(&mut self) {
         let Some(b) = &self.backend else { return };
+        if self.readers.1.elapsed() >= std::time::Duration::from_millis(500) {
+            self.readers = (b.has_readers(), Instant::now());
+        }
         let st = self.controller.state();
-        let needed = b.has_readers() != Some(false)
-            || st.monitor.enabled
-            || self.controller.is_calibrating();
+        let needed =
+            self.readers.0 != Some(false) || st.monitor.enabled || self.controller.is_calibrating();
         if needed {
             self.needed_at = Instant::now();
         }
         let standby = !needed && self.needed_at.elapsed() >= STANDBY_AFTER;
         if standby != st.standby {
-            b.set_capture(!standby);
+            // Not done (a failed resume): stay as is and retry next pass.
+            if !b.set_capture(!standby) {
+                return;
+            }
+            if !standby {
+                self.controller.capture_resumed();
+            }
             let st = self.controller.state_mut();
             st.standby = standby;
             // No more meter frames: the needles and lamps fall to rest.
@@ -966,6 +977,7 @@ fn main() -> eframe::Result<()> {
         active,
         backend: running,
         needed_at: Instant::now(),
+        readers: (None, Instant::now()),
         devices: backend,
         inputs,
         outputs,

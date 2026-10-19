@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 bin=${VOICE_STRIP_BIN:-target/release/voice-strip}
 read_s=${1:-8}
 
-now_ms() { python3 -c 'import time; print(int(time.time() * 1000))'; }
+now_ms() { perl -MTime::HiRes=time -e 'printf "%d\n", time * 1000'; }
 capture() { "$bin" ctl status 2>/dev/null | sed -n 's/.*"capture":"\([a-z]*\)".*/\1/p'; }
 wait_for() {
   local want=$1 seconds=$2 i

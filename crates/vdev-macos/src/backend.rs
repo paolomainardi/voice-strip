@@ -590,10 +590,11 @@ impl MacRunning {
                     io.info = rt.configure(cap);
                 }
                 // SAFETY: as above.
-                if let Ok(proc_id) =
-                    unsafe { hal::start_io_proc(old, capture, self.rt as *mut c_void) }
-                {
-                    io.proc_id = proc_id;
+                match unsafe { hal::start_io_proc(old, capture, self.rt as *mut c_void) } {
+                    Ok(proc_id) => io.proc_id = proc_id,
+                    // Nothing runs now: later stops must not touch the
+                    // destroyed IOProc, and a resume starts a new one.
+                    Err(_) => io.paused = true,
                 }
                 Err(err("start capture", e))
             }
@@ -627,10 +628,10 @@ impl RunningBackend for MacRunning {
         hal::is_running_somewhere(dev).ok()
     }
 
-    fn set_capture(&self, on: bool) {
+    fn set_capture(&self, on: bool) -> bool {
         let mut io = self.io.lock().unwrap_or_else(|e| e.into_inner());
         if io.paused != on {
-            return;
+            return true;
         }
         if on {
             // SAFETY: `rt` outlives the IOProc (freed in Drop after stopping it).
@@ -638,13 +639,18 @@ impl RunningBackend for MacRunning {
                 Ok(proc_id) => {
                     io.proc_id = proc_id;
                     io.paused = false;
+                    true
                 }
-                Err(e) => eprintln!("voice-strip: cannot resume the microphone: {e}"),
+                Err(e) => {
+                    eprintln!("voice-strip: cannot resume the microphone: {e}");
+                    false
+                }
             }
         } else {
             // SAFETY: from start_io_proc on `io.dev`; it is not called again.
             unsafe { hal::stop_io_proc(io.dev, io.proc_id) };
             io.paused = true;
+            true
         }
     }
 }

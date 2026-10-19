@@ -104,12 +104,11 @@ impl Graph {
             | self.links.remove(&id).is_some()
     }
 
-    /// Links that read the virtual microphone: other applications.
-    pub fn readers(&self) -> usize {
-        let Some(vmic) = self.node_by_name(VIRTUAL_MIC_NAME) else {
-            return 0;
-        };
-        self.links.values().filter(|(out, _)| *out == vmic).count()
+    /// Links that read the virtual microphone: other applications;
+    /// `None` until its node is known.
+    pub fn readers(&self) -> Option<usize> {
+        let vmic = self.node_by_name(VIRTUAL_MIC_NAME)?;
+        Some(self.links.values().filter(|(out, _)| *out == vmic).count())
     }
 
     pub fn node_by_name(&self, name: &str) -> Option<u32> {

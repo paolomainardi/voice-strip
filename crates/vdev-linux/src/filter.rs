@@ -417,9 +417,10 @@ impl State {
 
     /// Periodic: links, monitor port lifecycle and latency declaration.
     fn poll(&mut self) {
-        self.status
-            .readers
-            .store(self.graph.readers(), Ordering::Release);
+        self.status.readers.store(
+            self.graph.readers().unwrap_or(usize::MAX),
+            Ordering::Release,
+        );
         self.sync_capture();
         self.sync_output();
         let wanted = self.watch.monitor_wanted();

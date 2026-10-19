@@ -196,7 +196,8 @@ pub(crate) struct Status {
     pub driver_delay: AtomicI64,
     /// Realtime callbacks run so far.
     pub cycles: AtomicUsize,
-    /// Links reading the virtual microphone (other applications).
+    /// Links reading the virtual microphone (other applications);
+    /// `usize::MAX` until the virtual microphone node is known.
     pub readers: AtomicUsize,
     error: Mutex<Option<String>>,
 }
@@ -290,14 +291,12 @@ impl RunningBackend for PipeWireRunning {
     }
 
     fn has_readers(&self) -> Option<bool> {
-        self.status
-            .connected
-            .load(Ordering::Acquire)
-            .then(|| self.status.readers.load(Ordering::Acquire) > 0)
+        let n = self.status.readers.load(Ordering::Acquire);
+        (self.status.connected.load(Ordering::Acquire) && n != usize::MAX).then_some(n > 0)
     }
 
-    fn set_capture(&self, on: bool) {
-        let _ = self.tx.send(Command::SetCapture(on));
+    fn set_capture(&self, on: bool) -> bool {
+        self.tx.send(Command::SetCapture(on)).is_ok()
     }
 }
 

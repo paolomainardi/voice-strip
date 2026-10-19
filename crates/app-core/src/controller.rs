@@ -242,6 +242,11 @@ impl Controller {
         self.profiles_dir = Some(dir);
     }
 
+    /// Capture resumes after standby; see [`engine::EngineHandle::capture_resumed`].
+    pub fn capture_resumed(&self) {
+        self.engine.capture_resumed();
+    }
+
     /// Checks for a newer release once a day, with its on/off setting in
     /// `dir` (see [`crate::updates`]).
     pub fn enable_update_check(&mut self, dir: std::path::PathBuf) {
