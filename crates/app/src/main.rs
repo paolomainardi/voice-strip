@@ -159,6 +159,9 @@ struct VoiceStrip {
     prompted: bool,
     active: ViewKind,
     backend: Option<Box<dyn RunningBackend>>,
+    /// The active view's static layer, tessellated once and reused every
+    /// frame until its key changes.
+    static_layer: Option<StaticLayer>,
     /// The platform backend, kept to list devices again.
     devices: Box<dyn AudioBackend>,
     inputs: Vec<DeviceInfo>,
@@ -613,6 +616,18 @@ impl VoiceStrip {
         effect
     }
 
+    /// 30 frames a second for the meters; 4 in standby once the needles
+    /// have fallen to rest, since nothing moves (input still repaints at
+    /// once).
+    fn repaint_period(&self) -> std::time::Duration {
+        let resting = std::time::Duration::from_secs(2);
+        if self.controller.standby_for().is_some_and(|t| t >= resting) {
+            std::time::Duration::from_millis(250)
+        } else {
+            std::time::Duration::from_millis(33)
+        }
+    }
+
     fn cursor(&mut self) -> Cursor {
         if ModelDialog::is_open(self.controller.state()) {
             self.dialog.cursor()
@@ -705,7 +720,25 @@ impl eframe::App for VoiceStrip {
                 ViewKind::Advanced => &mut self.advanced,
             };
             view.layout(size.0, size.1, &state, &mut p);
-            view.paint_static(&mut p);
+            let key = StaticKey {
+                view: self.active as u8,
+                view_key: view.static_key(),
+                size: (size.0.to_bits(), size.1.to_bits()),
+                scale: self.scale.to_bits(),
+                pixels_per_point: ctx.pixels_per_point().to_bits(),
+            };
+            if self.static_layer.as_ref().is_none_or(|l| l.key != key) {
+                let mut sp = EguiPainter::new(ctx, screen);
+                sp.scale(self.scale, self.scale);
+                view.paint_static(&mut sp);
+                self.static_layer = Some(StaticLayer::tessellate(ctx, key, sp.shapes));
+            }
+            if let Some(layer) = &self.static_layer {
+                for (clip, mesh) in &layer.meshes {
+                    p.shapes.push((*clip, egui::Shape::Mesh(mesh.clone())));
+                }
+                p.shapes.extend(layer.text.iter().cloned());
+            }
             view.paint_dynamic(&mut p, &state);
             if ModelDialog::is_open(&state) {
                 let dark = self.active == ViewKind::Advanced;
@@ -726,7 +759,11 @@ impl eframe::App for VoiceStrip {
         self.device_menu(ctx);
         self.tooltip(ctx);
         self.screenshot(ctx);
-        ctx.request_repaint();
+        // Frames are paced by `repaint_period` (in `logic`); a screenshot
+        // needs a few frames in a row.
+        if self.shot.is_some() {
+            ctx.request_repaint();
+        }
     }
 }
 
@@ -939,6 +976,7 @@ fn main() -> eframe::Result<()> {
         prompted: false,
         active,
         backend: running,
+        static_layer: None,
         devices: backend,
         inputs,
         outputs,
@@ -1061,11 +1099,58 @@ impl eframe::App for Window {
             // Closing without quitting leaves the app in the background.
             Effect::Hide | Effect::Quit => ctx.send_viewport_cmd(ViewportCommand::Close),
         }
-        ctx.request_repaint_after(std::time::Duration::from_millis(33));
+        let period = self.0.borrow().repaint_period();
+        ctx.request_repaint_after(period);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.0.borrow_mut().ui(ui, frame);
+    }
+}
+
+/// What the static layer depends on.
+#[derive(Clone, Copy, PartialEq)]
+struct StaticKey {
+    view: u8,
+    view_key: u64,
+    size: (u32, u32),
+    scale: u32,
+    pixels_per_point: u32,
+}
+
+/// The static layer's paths as triangles, so drawing them costs a copy,
+/// not a tessellation. Text stays text: its triangles point into the font
+/// atlas, which egui repacks as glyphs come and go, and egui caches laid
+/// out text anyway. Text is drawn after the paths, as static labels sit on
+/// the faceplate.
+struct StaticLayer {
+    key: StaticKey,
+    meshes: Vec<(egui::Rect, std::sync::Arc<egui::Mesh>)>,
+    text: Vec<(egui::Rect, egui::Shape)>,
+}
+
+impl StaticLayer {
+    fn tessellate(
+        ctx: &egui::Context,
+        key: StaticKey,
+        shapes: Vec<(egui::Rect, egui::Shape)>,
+    ) -> Self {
+        let (text, shapes): (Vec<_>, Vec<_>) = shapes
+            .into_iter()
+            .partition(|(_, s)| matches!(s, egui::Shape::Text(_)));
+        let shapes = shapes
+            .into_iter()
+            .map(|(clip_rect, shape)| egui::epaint::ClippedShape { clip_rect, shape })
+            .collect();
+        let meshes = ctx
+            .tessellate(shapes, ctx.pixels_per_point())
+            .into_iter()
+            .filter_map(|p| match p.primitive {
+                egui::epaint::Primitive::Mesh(m) => Some((p.clip_rect, std::sync::Arc::new(m))),
+                egui::epaint::Primitive::Callback(_) => None,
+            })
+            .collect();
+        Self { key, meshes, text }
     }
 }
 

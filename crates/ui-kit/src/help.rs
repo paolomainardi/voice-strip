@@ -6,7 +6,11 @@ use app_core::{DenoiseLevel, DetectorState, ModelState, PresetId, UiState};
 use dsp::Module;
 
 pub fn on_switch(state: &UiState) -> String {
-    if state.on {
+    if state.on && state.standby {
+        "Standby: no application uses the Voice Strip microphone, so your microphone is \
+         released. Processing starts again as soon as one opens it. Click to bypass."
+            .into()
+    } else if state.on {
         "Processing is on. Click to bypass: your microphone goes out unprocessed.".into()
     } else {
         "Processing is bypassed. Click to turn the voice chain back on.".into()
@@ -186,6 +190,12 @@ pub fn models(state: &UiState) -> String {
              noise floor."
         ),
     };
+    if state.standby {
+        return "Standby: no application uses the Voice Strip microphone, so the physical \
+                microphone is released and nothing is processed. It comes back as soon as an \
+                application opens Voice Strip, the headphone monitor is on or you calibrate."
+            .into();
+    }
     let dfn = if state.neural_denoise.is_some() {
         "Noise removal (DeepFilterNet3) cleans every 10 ms of your voice."
     } else {

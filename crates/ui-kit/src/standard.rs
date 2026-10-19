@@ -233,7 +233,11 @@ impl StandardView {
     fn on_button_rect(&self, state: &UiState) -> Rect {
         // 12 padding + 10 lamp + 8 gap + text + 12 padding; width measured
         // at paint time, here approximated from the longest label.
-        let w = if state.on { 59.9 } else { 109.0 };
+        let w = if state.on && !state.standby {
+            59.9
+        } else {
+            109.0
+        };
         Rect::new(CONTENT_RIGHT - w, ON_BUTTON_Y, w, ON_BUTTON_H)
     }
 
@@ -433,7 +437,12 @@ impl View for StandardView {
     fn paint_dynamic(&mut self, p: &mut dyn Painter, state: &UiState) {
         // ON / BYPASS button.
         let on_style = TextStyle::new(Family::Oswald, 400, 13.0, th::FACEPLATE).spacing(2.0);
-        let on_label = if state.on { "ON" } else { "BYPASS" };
+        // Standby: on, but no application uses Voice Strip, so nothing runs.
+        let on_label = match (state.on, state.standby) {
+            (false, _) => "BYPASS",
+            (true, true) => "STANDBY",
+            (true, false) => "ON",
+        };
         let tw = p.measure_text(on_label, &on_style).width;
         let bw = 12.0 + 10.0 + 8.0 + tw + 12.0;
         let btn = Rect::new(CONTENT_RIGHT - bw, ON_BUTTON_Y, bw, ON_BUTTON_H);
@@ -442,7 +451,11 @@ impl View for StandardView {
         lamp(
             p,
             lamp_r,
-            if state.on { th::AMBER } else { th::INK_SOFT },
+            match (state.on, state.standby) {
+                (false, _) => th::INK_SOFT,
+                (true, true) => th::AMBER.with_alpha(0.35),
+                (true, false) => th::AMBER,
+            },
             false,
         );
         p.text_in_rect(

@@ -251,6 +251,13 @@ pub fn default_output() -> Result<AudioObjectId, OsStatus> {
     read(SYSTEM_OBJECT, global(PROP_DEFAULT_OUTPUT_DEVICE), 0u32)
 }
 
+/// Whether any client runs IO on the device, as Core Audio counts it across
+/// processes (`kAudioDevicePropertyDeviceIsRunningSomewhere`; the device's
+/// own `DeviceIsRunning` only reflects the calling process).
+pub fn is_running_somewhere(id: AudioObjectId) -> Result<bool, OsStatus> {
+    read(id, global(fourcc(b"gone")), 0u32).map(|v| v != 0)
+}
+
 pub fn nominal_rate(id: AudioObjectId) -> Result<f64, OsStatus> {
     read(id, global(PROP_NOMINAL_SAMPLE_RATE), 0f64)
 }

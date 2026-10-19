@@ -194,6 +194,9 @@ pub(crate) struct Status {
     pub driver_delay: AtomicI64,
     /// Realtime callbacks run so far.
     pub cycles: AtomicUsize,
+    /// Links reading the virtual microphone (other applications);
+    /// `usize::MAX` until the virtual microphone node is known.
+    pub readers: AtomicUsize,
     error: Mutex<Option<String>>,
 }
 
@@ -235,6 +238,13 @@ impl PipeWireRunning {
     /// Block size of the last realtime callback (0 before the first).
     pub fn quantum(&self) -> usize {
         self.status.quantum.load(Ordering::Acquire)
+    }
+
+    /// Whether some application reads the virtual microphone; `None`
+    /// until the graph shows it.
+    pub fn has_readers(&self) -> Option<bool> {
+        let n = self.status.readers.load(Ordering::Acquire);
+        (self.status.connected.load(Ordering::Acquire) && n != usize::MAX).then_some(n > 0)
     }
 
     /// Realtime callbacks run so far.

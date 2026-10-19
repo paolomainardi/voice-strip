@@ -58,6 +58,9 @@ pub struct UiState {
     pub update_available: Option<String>,
     /// Whether the daily update check is on.
     pub update_check: bool,
+    /// Capture paused because no application reads the virtual
+    /// microphone: the physical microphone is released.
+    pub standby: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -152,6 +155,7 @@ pub struct Controller {
     settings_dir: Option<std::path::PathBuf>,
     update_rx: Option<std::sync::mpsc::Receiver<Result<Option<String>, String>>>,
     last_update_check: Option<std::time::Instant>,
+    standby_since: Option<std::time::Instant>,
 }
 
 /// Noise removal is switched off when the denoiser misses more than this
@@ -191,6 +195,7 @@ impl Controller {
             settings_dir: None,
             update_rx: None,
             last_update_check: None,
+            standby_since: None,
             state: UiState {
                 on: true,
                 muted: false,
@@ -225,6 +230,7 @@ impl Controller {
                 voice_detector: DetectorState::Loading,
                 update_available: None,
                 update_check: false,
+                standby: false,
             },
         };
         c.sync_chain();
@@ -236,6 +242,27 @@ impl Controller {
     /// a microphone is selected.
     pub fn set_profiles_dir(&mut self, dir: std::path::PathBuf) {
         self.profiles_dir = Some(dir);
+    }
+
+    /// Mirrors the backend's standby into the state; entering it, the
+    /// meters fall to rest since no frames come.
+    fn sync_standby(&mut self) {
+        let standby = self.engine.is_standby();
+        if standby == self.state.standby {
+            return;
+        }
+        self.state.standby = standby;
+        if standby {
+            self.state.meters = MeterFrame::silent(&self.state.meters);
+            self.standby_since = Some(std::time::Instant::now());
+        } else {
+            self.standby_since = None;
+        }
+    }
+
+    /// How long the app has been in standby.
+    pub fn standby_for(&self) -> Option<std::time::Duration> {
+        self.standby_since.map(|t| t.elapsed())
     }
 
     /// Checks for a newer release once a day, with its on/off setting in
@@ -344,6 +371,8 @@ impl Controller {
             c.commit_all();
         }
         self.calibrator = Some(Calibrator::new());
+        // Calibration needs the microphone, readers or not.
+        self.engine.set_capture_held(true);
         self.state.notice = None;
         self.state.calibration = Some(CalibrationStatus {
             phase: Phase::Silence,
@@ -408,12 +437,14 @@ impl Controller {
                 None => {}
             }
             self.calibrator = None;
+            self.engine.set_capture_held(false);
         }
         self.state.calibration = Some(status);
     }
 
     /// Pulls the latest meters from the engine. Call once per UI frame.
     pub fn tick(&mut self) {
+        self.sync_standby();
         self.pump_calibration();
         self.poll_download();
         self.poll_vad();
@@ -429,7 +460,10 @@ impl Controller {
             self.chain_handoff = 0;
             self.sync_chain();
         }
-        if let Some(m) = self.engine.latest_meters() {
+        // In standby the meters rest; a last frame from before stays unread.
+        if let Some(m) = self.engine.latest_meters()
+            && !self.state.standby
+        {
             self.state.meters = m;
             self.watch_denoiser(m.denoise_missed_frames);
         }

@@ -37,6 +37,30 @@ pub struct MeterFrame {
     pub denoise_inference_ms: Option<f32>,
 }
 
+impl MeterFrame {
+    /// Silence: every level at minus infinity, nothing reduced, the
+    /// counters kept from `previous` (standby, when no frames arrive).
+    pub fn silent(previous: &MeterFrame) -> Self {
+        let off = f32::NEG_INFINITY;
+        Self {
+            in_peak_db: off,
+            in_rms_db: off,
+            out_rms_db: off,
+            in_avg_db: off,
+            out_avg_db: off,
+            lufs_momentary: off,
+            lufs_short_term: off,
+            true_peak_db: off,
+            gain_reduction_db: [0.0; 9],
+            denoise_missed_frames: previous.denoise_missed_frames,
+            speech_probability: None,
+            room_db: previous.room_db,
+            vad_inference_ms: None,
+            denoise_inference_ms: None,
+        }
+    }
+}
+
 /// Average of |x| over `buf`, scaled by pi / (2 sqrt 2) so that a sine
 /// reads its RMS: the full-wave average rectifier of a VU meter. Speech,
 /// with its high crest factor, reads lower than its RMS, as on a real VU.

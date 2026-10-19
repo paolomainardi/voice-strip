@@ -37,6 +37,8 @@ pub struct TrayState {
     pub window: bool,
     /// A newer release, `major.minor.patch`.
     pub update: Option<[u16; 3]>,
+    /// No application uses Voice Strip; the microphone is released.
+    pub standby: bool,
 }
 
 impl TrayState {
@@ -47,6 +49,7 @@ impl TrayState {
             preset: st.preset,
             noise: st.neural_denoise,
             window,
+            standby: st.standby,
             update: st.update_available.as_deref().and_then(|v| {
                 let mut it = v.split('.').map(|n| n.parse::<u16>().ok());
                 Some([it.next()??, it.next()??, it.next()??])
@@ -113,10 +116,12 @@ impl ksni::Tray for VoiceStripTray {
             title: "Voice Strip".into(),
             description: format!(
                 "{} · {}",
-                if self.state.on {
-                    preset_label(self.state.preset)
-                } else {
+                if !self.state.on {
                     "Bypass"
+                } else if self.state.standby {
+                    "Standby"
+                } else {
+                    preset_label(self.state.preset)
                 },
                 match self.state.noise {
                     Some(l) => format!("noise removal {}", l.label().to_lowercase()),

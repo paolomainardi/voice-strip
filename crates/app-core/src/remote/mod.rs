@@ -330,6 +330,11 @@ pub fn state_json(st: &UiState, extras: Extras) -> String {
         None => s.push_str("null"),
     }
     let _ = write!(s, ",\"update_check\":{}", st.update_check);
+    let _ = write!(
+        s,
+        ",\"capture\":\"{}\"",
+        if st.standby { "standby" } else { "active" }
+    );
     s.push_str(",\"notice\":");
     match &st.notice {
         Some(n) => push_str(&mut s, n),

@@ -290,6 +290,12 @@ test-timing:
 [linux]
 test-pipewire:
     scripts/e2e/run.sh cargo test -p vdev-linux --test loopback -- --ignored --nocapture --test-threads=1
+    scripts/e2e/run.sh cargo test -p vdev-linux --test standby -- --ignored --nocapture
+
+# Check standby with the running app: it releases the microphone when nobody reads Voice Strip (macOS: from Terminal)
+[group('test')]
+test-standby *args:
+    scripts/standby-check.sh "$@"
 
 # Record 60 s of your raw microphone into target/voice/ for test-voice (stays local)
 [group('measure')]

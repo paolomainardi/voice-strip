@@ -37,6 +37,8 @@ pub struct Graph {
     pub ports: HashMap<u32, PortEntry>,
     pub default_source: Option<String>,
     pub default_sink: Option<String>,
+    /// Links by id: (output node, input node).
+    pub links: HashMap<u32, (u32, u32)>,
 }
 
 impl Graph {
@@ -61,6 +63,15 @@ impl Graph {
                         class,
                     },
                 );
+                true
+            }
+            ObjectType::Link => {
+                let node = |k| props.get(k).and_then(|s: &str| s.parse().ok());
+                let (Some(out), Some(inp)) = (node("link.output.node"), node("link.input.node"))
+                else {
+                    return false;
+                };
+                self.links.insert(g.id, (out, inp));
                 true
             }
             ObjectType::Port => {
@@ -88,7 +99,16 @@ impl Graph {
     }
 
     pub fn remove_global(&mut self, id: u32) -> bool {
-        self.nodes.remove(&id).is_some() | self.ports.remove(&id).is_some()
+        self.nodes.remove(&id).is_some()
+            | self.ports.remove(&id).is_some()
+            | self.links.remove(&id).is_some()
+    }
+
+    /// Links that read the virtual microphone: other applications;
+    /// `None` until its node is known.
+    pub fn readers(&self) -> Option<usize> {
+        let vmic = self.node_by_name(VIRTUAL_MIC_NAME)?;
+        Some(self.links.values().filter(|(out, _)| *out == vmic).count())
     }
 
     pub fn node_by_name(&self, name: &str) -> Option<u32> {

@@ -47,6 +47,7 @@ pub fn demo_state() -> UiState {
         voice_detector: DetectorState::Running,
         update_available: None,
         update_check: true,
+        standby: false,
     }
 }
 
