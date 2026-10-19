@@ -115,7 +115,7 @@ Select **Voice Strip Microphone** as the microphone in your call or recording ap
 
 ## Install on macOS from source
 
-macOS has no release binary: its virtual microphone is a Core Audio driver that must be signed on the Mac that runs it. You build it yourself and sign it ad-hoc, which needs no Apple account.
+Each release includes a macOS arm64 build, with the app and its Core Audio driver ad-hoc signed (no Apple account involved), for the Homebrew tap. To build it yourself instead:
 
 **1. Install the tools** (macOS 13 or later):
 
