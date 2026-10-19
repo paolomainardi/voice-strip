@@ -650,6 +650,18 @@ impl VoiceStrip {
         }
     }
 
+    /// 30 frames a second for the meters; 4 in standby once the needles
+    /// have fallen to rest, since nothing moves (input still repaints at
+    /// once).
+    fn repaint_period(&self) -> std::time::Duration {
+        let resting = STANDBY_AFTER + std::time::Duration::from_secs(2);
+        if self.controller.state().standby && self.needed_at.elapsed() >= resting {
+            std::time::Duration::from_millis(250)
+        } else {
+            std::time::Duration::from_millis(33)
+        }
+    }
+
     fn cursor(&mut self) -> Cursor {
         if ModelDialog::is_open(self.controller.state()) {
             self.dialog.cursor()
@@ -1100,7 +1112,8 @@ impl eframe::App for Window {
             // Closing without quitting leaves the app in the background.
             Effect::Hide | Effect::Quit => ctx.send_viewport_cmd(ViewportCommand::Close),
         }
-        ctx.request_repaint_after(std::time::Duration::from_millis(33));
+        let period = self.0.borrow().repaint_period();
+        ctx.request_repaint_after(period);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
