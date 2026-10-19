@@ -333,7 +333,7 @@ impl VoiceStrip {
             } = ev
                 && modifiers.command
             {
-                ctx.send_viewport_cmd(ViewportCommand::Close);
+                self.hide_window(ctx);
                 continue;
             }
             match ev {
@@ -509,6 +509,27 @@ impl VoiceStrip {
                     });
                 });
         }
+    }
+
+    /// Hides the window and keeps running. macOS hides it and keeps the
+    /// event loop, which AppKit needs to open the menu bar item's menu;
+    /// elsewhere the window closes (Wayland cannot hide one) and
+    /// [`run_background`] takes over.
+    fn hide_window(&mut self, ctx: &egui::Context) {
+        if cfg!(target_os = "macos") {
+            ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+            self.window_open = false;
+        } else {
+            ctx.send_viewport_cmd(ViewportCommand::Close);
+        }
+    }
+
+    fn show_window(&mut self, ctx: &egui::Context) {
+        if cfg!(target_os = "macos") {
+            ctx.send_viewport_cmd(ViewportCommand::Visible(true));
+            self.window_open = true;
+        }
+        ctx.send_viewport_cmd(ViewportCommand::Focus);
     }
 
     /// Applies one tray or menu bar command.
@@ -1009,11 +1030,24 @@ fn main() -> eframe::Result<()> {
         quit: false,
         window_open: false,
     }));
+    // macOS: one window for the whole run, hidden for --background and
+    // whenever the user hides it.
+    // The `return` is the last statement only on macOS.
+    #[cfg(target_os = "macos")]
+    #[allow(clippy::needless_return)]
+    {
+        let visible = screenshot || !args.background;
+        app.borrow_mut().window_open = visible;
+        run_window(&app, args.scale, screenshot, visible)?;
+        return Ok(());
+    }
+    #[cfg(not(target_os = "macos"))]
     let mut window = screenshot || !args.background;
+    #[cfg(not(target_os = "macos"))]
     loop {
         if window {
             app.borrow_mut().window_open = true;
-            run_window(&app, args.scale, screenshot)?;
+            run_window(&app, args.scale, screenshot, true)?;
             app.borrow_mut().window_open = false;
             if screenshot || app.borrow().quit {
                 return Ok(());
@@ -1027,7 +1061,12 @@ fn main() -> eframe::Result<()> {
 }
 
 /// Shows the window until it is closed.
-fn run_window(app: &Rc<RefCell<VoiceStrip>>, scale: f32, screenshot: bool) -> eframe::Result<()> {
+fn run_window(
+    app: &Rc<RefCell<VoiceStrip>>,
+    scale: f32,
+    screenshot: bool,
+    visible: bool,
+) -> eframe::Result<()> {
     let initial = {
         let mut a = app.borrow_mut();
         // A new window: request its size again and restart the frame clock.
@@ -1040,6 +1079,7 @@ fn run_window(app: &Rc<RefCell<VoiceStrip>>, scale: f32, screenshot: bool) -> ef
             .with_app_id(APP_ID)
             .with_title("Voice Strip")
             .with_inner_size(initial)
+            .with_visible(visible)
             .with_resizable(false)
             .with_decorations(false)
             .with_transparent(true),
@@ -1071,15 +1111,12 @@ fn run_window(app: &Rc<RefCell<VoiceStrip>>, scale: f32, screenshot: bool) -> ef
 }
 
 /// Runs without a window, about 30 times a second, until something asks
-/// for the window or for quitting.
+/// for the window or for quitting. Not on macOS, where the window is hidden
+/// instead.
+#[cfg(not(target_os = "macos"))]
 fn run_background(app: &Rc<RefCell<VoiceStrip>>) -> Effect {
     loop {
-        let d = std::time::Duration::from_millis(33);
-        // macOS: AppKit's loop must run for the menu bar to answer.
-        #[cfg(target_os = "macos")]
-        menubar::pump(d);
-        #[cfg(not(target_os = "macos"))]
-        std::thread::sleep(d);
+        std::thread::sleep(std::time::Duration::from_millis(33));
         // Already hidden: nothing to do for a hide.
         let effect = app.borrow_mut().service();
         if !matches!(effect, Effect::None | Effect::Hide) {
@@ -1100,13 +1137,26 @@ impl eframe::App for Window {
     /// is covered or minimized, when eframe paints nothing: macOS stops
     /// redrawing an occluded window, and remote control, the menu bar and
     /// the meters must go on.
+    /// On macOS a hidden window stays, so this goes on while it is hidden
+    /// too (eframe runs it 10 times a second for an invisible window).
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        match self.0.borrow_mut().service() {
-            Effect::None => {}
-            Effect::Show => ctx.send_viewport_cmd(ViewportCommand::Focus),
-            // Closing without quitting leaves the app in the background.
-            Effect::Hide | Effect::Quit => ctx.send_viewport_cmd(ViewportCommand::Close),
+        let mut app = self.0.borrow_mut();
+        // macOS: a close that is not a quit hides the window instead.
+        if cfg!(target_os = "macos")
+            && ctx.input(|i| i.viewport().close_requested())
+            && !app.quit
+            && app.shot.is_none()
+        {
+            ctx.send_viewport_cmd(ViewportCommand::CancelClose);
+            app.hide_window(ctx);
         }
+        match app.service() {
+            Effect::None => {}
+            Effect::Show => app.show_window(ctx),
+            Effect::Hide => app.hide_window(ctx),
+            Effect::Quit => ctx.send_viewport_cmd(ViewportCommand::Close),
+        }
+        drop(app);
         let period = self.0.borrow().repaint_period();
         ctx.request_repaint_after(period);
     }
