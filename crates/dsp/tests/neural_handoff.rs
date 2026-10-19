@@ -225,7 +225,7 @@ fn full_bypass_skips_the_neural_stage() {
         .map(|i| ((i as f32) * 0.01).sin() * 0.3)
         .collect();
     let mut y = x.clone();
-    let mut run = |chain: &mut Chain, y: &mut [f32], from: usize, n: usize| {
+    let run = |chain: &mut Chain, y: &mut [f32], from: usize, n: usize| {
         for i in from..from + n {
             chain.process(&mut y[i * F..(i + 1) * F]);
         }
