@@ -4,6 +4,13 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-19
+
+### Fixed
+
+- On macOS, the menu bar item's menu opens while the window is hidden or the app started with `--background`.
+- `just upgrade` now points to an earlier release tag, not `main`, when the clone has commits the latest release lacks.
+
 ## [0.5.0] - 2026-10-19
 
 ### Added
@@ -128,7 +135,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/paolomainardi/voice-strip/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/paolomainardi/voice-strip/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/paolomainardi/voice-strip/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/paolomainardi/voice-strip/compare/v0.3.0...v0.3.1
