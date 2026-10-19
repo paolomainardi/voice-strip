@@ -84,8 +84,14 @@ upgrade:
     fi
     current=$(git describe --tags --always)
     echo "upgrade: $current -> $latest"
+    # The driver changed when its code, bundle or build scripts did; the
+    # version bump every release makes in its Cargo.toml does not count.
     driver_changed=0
-    git diff --quiet HEAD "$latest" -- crates/vdev-macos-driver scripts/macos-driver.sh scripts/macos-driver-install.sh || driver_changed=1
+    git diff --quiet HEAD "$latest" -- crates/vdev-macos-driver/src crates/vdev-macos-driver/Info.plist \
+        scripts/macos-driver.sh scripts/macos-driver-install.sh || driver_changed=1
+    if git diff HEAD "$latest" -- crates/vdev-macos-driver/Cargo.toml | grep '^[-+][^-+]' | grep -qv '^[-+]version = '; then
+        driver_changed=1
+    fi
     # Restart a running app with the arguments it was started with.
     running=0
     args=""
