@@ -104,11 +104,11 @@ Two views show it: a vintage faceplate for everyday use, and an advanced view wi
 Each [release](https://github.com/paolomainardi/voice-strip/releases) has a Linux x86_64 binary. It needs PipeWire, a Wayland or X11 desktop and a Vulkan driver, and runs on distributions with glibc 2.39 or later (Ubuntu 24.04, Debian 13, Fedora 40, Arch Linux and newer). On older ones, build from source.
 
 ```bash
-curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.3.1/voice-strip-v0.3.1-linux-x86_64.tar.gz
-curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.3.1/SHA256SUMS
+curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.4.0/voice-strip-v0.4.0-linux-x86_64.tar.gz
+curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.4.0/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
-tar -xzf voice-strip-v0.3.1-linux-x86_64.tar.gz
-./voice-strip-v0.3.1-linux-x86_64/voice-strip
+tar -xzf voice-strip-v0.4.0-linux-x86_64.tar.gz
+./voice-strip-v0.4.0-linux-x86_64/voice-strip
 ```
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app. Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`.
@@ -188,7 +188,7 @@ Calibrations live in `~/.config/voice-strip/profiles/` on Linux (`$XDG_CONFIG_HO
 - **Microphone and headphones.** Pick them in the app, or start with `--input` and `--headphones` (see `just devices`).
 - **Presets and noise removal.** A preset sets the tone and loudness target. The three gauges under the presets show how much it compresses, brightens and keeps the warmth of your voice, and follow the Intensity knob; hover a preset to read what it is for. Noise removal adds about 20 ms of delay: it is light in Broadcast and Podcast, medium in Stream, strong in Call and off in Narration.
 - **Headphone monitor.** The headphones get a lighter chain than the virtual microphone, without noise removal, saturation or leveler, to keep the delay low. Bluetooth headphones add 150 ms or more of their own: use wired ones to monitor.
-- **Standby.** When no application uses the Voice Strip microphone for 5 s, Voice Strip releases your microphone, so its in-use indicator goes off, and processes nothing. The ON button reads STANDBY with its lamp dimmed. It comes back as soon as an application opens Voice Strip, the headphone monitor is on or you calibrate.
+- **Standby** ([docs/standby.md](docs/standby.md)). When no application uses the Voice Strip microphone for 5 s, Voice Strip releases your microphone, so its in-use indicator goes off, and processes nothing. The ON button reads STANDBY with its lamp dimmed. It comes back as soon as an application opens Voice Strip, the headphone monitor is on or you calibrate.
 - **Background.** Hiding the window keeps the app running: processing, the virtual microphone, the tray or menu bar item and remote control go on. Cmd+W on macOS or Ctrl+W on Linux hides it, as does closing it from the window manager; the Show window item in the tray or menu bar toggles it. Quit ends the app. `voice-strip --background` starts without the window.
 - **Without audio.** `just run --backend sim` shows the UI with a simulated signal.
 
