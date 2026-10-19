@@ -194,6 +194,17 @@ pub fn models(state: &UiState) -> String {
     format!("{vad}\n\n{dfn}")
 }
 
+/// The update link: what is new and how to get it.
+pub fn update(state: &UiState) -> String {
+    let v = state.update_available.as_deref().unwrap_or("");
+    format!(
+        "Voice Strip {v} is available (you run {}). Click to read what changed. To upgrade, \
+         {}. `voice-strip ctl updates off` stops this check.",
+        app_core::updates::current(),
+        app_core::updates::how_to_upgrade()
+    )
+}
+
 pub fn vu_input() -> String {
     "Input level (VU) before processing. The lamp lights when the microphone gets close to \
      clipping: lower its gain."

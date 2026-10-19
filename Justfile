@@ -63,6 +63,50 @@ start *args: build stop
     sleep 2
     just status
 
+# Upgrade this clone to the latest release: rebuild, reinstall the macOS driver if it changed, restart the app
+[group('app')]
+upgrade:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+        echo "upgrade: this clone has local changes; commit or stash them first" >&2
+        exit 1
+    fi
+    git fetch --quiet --tags origin
+    latest=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+    if [ -z "$latest" ]; then
+        echo "upgrade: no release tag found" >&2
+        exit 1
+    fi
+    if [ "$(git rev-parse HEAD)" = "$(git rev-parse "$latest^{commit}")" ]; then
+        echo "upgrade: already on $latest"
+        exit 0
+    fi
+    current=$(git describe --tags --always)
+    echo "upgrade: $current -> $latest"
+    driver_changed=0
+    git diff --quiet HEAD "$latest" -- crates/vdev-macos-driver scripts/macos-driver.sh scripts/macos-driver-install.sh || driver_changed=1
+    # Restart a running app with the arguments it was started with.
+    running=0
+    args=""
+    if pid=$(pgrep -x voice-strip | head -n 1); then
+        running=1
+        line=$(ps -o args= -p "$pid")
+        case "$line" in *" "*) args=${line#* } ;; esac
+    fi
+    git -c advice.detachedHead=false checkout --quiet "$latest"
+    cargo build --release -p app
+    if [ "$(uname -s)" = Darwin ] && [ "$driver_changed" = 1 ]; then
+        echo "upgrade: the driver changed; installing it (asks for sudo, audio stops for a moment)"
+        just macos-driver
+        just macos-driver-install
+    fi
+    if [ "$running" = 1 ]; then
+        # shellcheck disable=SC2086 # the saved arguments are words
+        just start $args
+    fi
+    echo "upgrade: now on $latest"
+
 # Start the app in the background in the advanced view; arguments go to voice-strip
 [group('app')]
 start-advanced *args:

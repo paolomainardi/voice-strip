@@ -45,6 +45,10 @@ const SCREWS: [(f32, f32); 4] = [
 
 const TITLE: Rect = Rect::new(30.0, 28.0, 126.2, 30.0);
 const SUBTITLE: Rect = Rect::new(30.0, 58.0, 126.2, 16.0);
+/// A newer release replaces the subtitle with a lamp and UPDATE x.y.z.
+const UPDATE_HIT: Rect = Rect::new(26.0, 54.0, 150.0, 22.0);
+/// Right edge of a footer notice: it wraps on two lines before CALIBRATE.
+const NOTICE_RIGHT: f32 = 194.0;
 const ON_BUTTON_Y: f32 = 29.0;
 const ON_BUTTON_H: f32 = 44.0;
 const CONTENT_RIGHT: f32 = 390.0;
@@ -133,6 +137,7 @@ enum Id {
     Advanced,
     Calibrate,
     Input,
+    Update,
 }
 
 pub struct StandardView {
@@ -214,6 +219,9 @@ impl StandardView {
         if INPUT_PICK.contains(p) {
             return Some(Id::Input);
         }
+        if state.update_available.is_some() && UPDATE_HIT.contains(p) {
+            return Some(Id::Update);
+        }
         None
     }
 
@@ -248,6 +256,7 @@ impl StandardView {
             Id::Advanced => out.push(Action::SwitchView(ViewKind::Advanced)),
             Id::Calibrate => out.push(Action::Recalibrate),
             Id::Input => out.push(Action::ChooseInput(INPUT_PICK)),
+            Id::Update => out.push(Action::OpenUpdate),
         }
     }
 
@@ -481,6 +490,42 @@ impl View for StandardView {
             &mute_style,
             Align::Left,
         );
+
+        // A newer release: the subtitle becomes a lamp and UPDATE x.y.z.
+        if let Some(v) = &state.update_available {
+            p.fill_rect(
+                Rect::new(
+                    SUBTITLE.x - 2.0,
+                    SUBTITLE.y - 2.0,
+                    SUBTITLE.w + 30.0,
+                    SUBTITLE.h + 4.0,
+                ),
+                th::FACEPLATE,
+            );
+            lamp(
+                p,
+                Rect::new(SUBTITLE.x, SUBTITLE.y + 4.0, 8.0, 8.0),
+                th::AMBER,
+                true,
+            );
+            let hover = self.clicker.hover == Some(Id::Update);
+            let style = TextStyle::new(
+                Family::Oswald,
+                500,
+                11.0,
+                if hover { th::LINK_HOVER } else { th::INK },
+            )
+            .spacing(2.0);
+            self.text2.clear();
+            let _ = write!(self.text2, "UPDATE {v}");
+            p.fill_text(
+                &self.text2,
+                SUBTITLE.x + 14.0,
+                SUBTITLE.y,
+                &style,
+                Align::Left,
+            );
+        }
 
         // Needles.
         for (r, db) in [(VU_IN, self.in_db), (VU_OUT, self.out_db)] {
@@ -748,9 +793,37 @@ impl View for StandardView {
         let foot = TextStyle::new(Family::PlexMono, 400, 12.0, th::INK_SOFT);
         self.text2.clear();
         if let Some(notice) = &state.notice {
-            // A problem the user must see replaces the latency line.
-            let warn = TextStyle::new(Family::PlexMono, 400, 11.0, th::RED);
-            p.text_in_rect(notice, FOOTER_TEXT, &warn, Align::Left);
+            // A problem the user must see replaces the latency line, on up
+            // to two lines left of CALIBRATE; the rest is cut.
+            let warn = TextStyle::new(Family::PlexMono, 400, 10.0, th::RED);
+            let width = NOTICE_RIGHT - FOOTER_TEXT.x;
+            let mut lines = [String::new(), String::new()];
+            let mut line = 0;
+            for word in notice.split_whitespace() {
+                let candidate = if lines[line].is_empty() {
+                    word.to_string()
+                } else {
+                    format!("{} {word}", lines[line])
+                };
+                if p.measure_text(&candidate, &warn).width <= width || lines[line].is_empty() {
+                    lines[line] = candidate;
+                } else if line == 0 {
+                    line = 1;
+                    lines[1] = word.to_string();
+                } else {
+                    lines[1].push('…');
+                    break;
+                }
+            }
+            for (i, l) in lines.iter().enumerate() {
+                p.fill_text(
+                    l,
+                    FOOTER_TEXT.x,
+                    FOOTER_TEXT.y + 3.0 + 13.0 * i as f32,
+                    &warn,
+                    Align::Left,
+                );
+            }
         } else {
             // Short form with monitoring on, to leave room for CALIBRATE.
             if mon {
@@ -906,6 +979,7 @@ impl View for StandardView {
                 Id::Ab => help::ab(state),
                 Id::Advanced => help::advanced(),
                 Id::Calibrate => help::calibrate(state),
+                Id::Update => help::update(state),
                 Id::Input => help::device_input(state),
             });
         }

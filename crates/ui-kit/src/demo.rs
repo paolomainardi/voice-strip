@@ -45,6 +45,8 @@ pub fn demo_state() -> UiState {
         model: ModelState::Ready,
         model_prompt: None,
         voice_detector: DetectorState::Running,
+        update_available: None,
+        update_check: true,
     }
 }
 

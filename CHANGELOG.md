@@ -4,6 +4,16 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- `just upgrade` moves a clone to the latest release, rebuilds, reinstalls the macOS driver only when it changed, and restarts the app.
+- The app shows when a newer release exists, in both views and the tray or menu bar, checking GitHub once a day.
+- `voice-strip ctl updates on|off` turns the update check on or off, and `ctl status` reports it.
+
+### Fixed
+
+- A notice in the standard view footer no longer runs over CALIBRATE.
+
 ## [0.3.1] - 2026-10-19
 
 ### Added

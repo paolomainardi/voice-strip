@@ -47,6 +47,7 @@ enum Id {
     MonitorSwitch,
     MonitorLevel,
     MonitorDenoise,
+    Update,
 }
 
 /// Everything the layout depends on besides the size.
@@ -118,6 +119,9 @@ pub struct AdvancedView {
     /// The monitor device button, placed while painting (empty when the
     /// monitor panel is collapsed).
     output_rect: Rect,
+    /// The newer-release pill after the output device, placed while
+    /// painting (empty when there is none or no room).
+    update_rect: Rect,
     /// The models line at the right of the voice profile row, placed while
     /// painting (empty when it does not fit).
     models_rect: Rect,
@@ -265,6 +269,7 @@ impl AdvancedView {
             input_rect: Rect::default(),
             output_rect: Rect::default(),
             models_rect: Rect::default(),
+            update_rect: Rect::default(),
             speech: Smoother::new(0.0, 0.08),
             speech_gate: dsp::voice::SpeechGate::default(),
             speech_lit: false,
@@ -535,6 +540,9 @@ impl AdvancedView {
         if self.output_rect.contains(p) {
             return Some(Id::Output);
         }
+        if self.update_rect.contains(p) {
+            return Some(Id::Update);
+        }
         let ids = [Id::Ab, Id::Bypass, Id::Compact, Id::Mute];
         for (i, r) in self.header_hits.iter().enumerate().skip(1) {
             if r.contains(p) {
@@ -583,6 +591,7 @@ impl AdvancedView {
             Id::Recalibrate => out.push(Action::Recalibrate),
             Id::Input => out.push(Action::ChooseInput(self.input_rect)),
             Id::Output => out.push(Action::ChooseOutput(self.output_rect)),
+            Id::Update => out.push(Action::OpenUpdate),
             Id::Module(i) => out.push(Action::SetModuleEnabled(
                 Module::ALL[i as usize],
                 !state.module_enabled[i as usize],
@@ -1387,6 +1396,42 @@ impl View for AdvancedView {
         control(p, Rect::new(x, hy, vw, 38.0), 8.0, th::CONTROL, th::BORDER);
         p.text_in_rect(vdev, Rect::new(x + 12.0, hy, vw, 38.0), &s13, Align::Left);
 
+        // A newer release: an accent pill after the output, when it fits
+        // before the controls on the right.
+        self.update_rect = Rect::default();
+        if let Some(v) = &state.update_available {
+            self.text.clear();
+            let _ = write!(self.text, "Update {v}");
+            let style = sans(13.0, 500, th::ACCENT);
+            let uw = p.measure_text(&self.text, &style).width + 24.0;
+            let ux = x + vw + 12.0;
+            let right = self
+                .header_hits
+                .iter()
+                .skip(1)
+                .filter(|r| r.w > 0.0)
+                .map(|r| r.x)
+                .fold(f32::INFINITY, f32::min);
+            if ux + uw + 12.0 <= right {
+                let r = Rect::new(ux, hy, uw, 38.0);
+                let hover = self.clicker.hover == Some(Id::Update);
+                control(
+                    p,
+                    r,
+                    8.0,
+                    th::ACCENT_BG,
+                    if hover { th::ACCENT_HOVER } else { th::ACCENT },
+                );
+                p.text_in_rect(
+                    &self.text,
+                    Rect::new(ux + 12.0, hy, uw, 38.0),
+                    &style,
+                    Align::Left,
+                );
+                self.update_rect = r;
+            }
+        }
+
         // Presets and voice profile.
         for (i, id) in PresetId::ALL.iter().enumerate() {
             let r = self.preset_rect(i);
@@ -1993,6 +2038,7 @@ impl View for AdvancedView {
             Id::Recalibrate => help::calibrate(state),
             Id::Input => help::device_input(state),
             Id::Output => help::device_output(state),
+            Id::Update => help::update(state),
             Id::Module(i) => help::module(Module::ALL[i as usize], state),
             Id::MonitorSwitch => help::monitor(state),
             Id::MonitorLevel => help::monitor_level(),

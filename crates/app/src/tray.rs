@@ -21,6 +21,8 @@ pub enum TrayCmd {
     /// The window item and a click on the icon: hides the window when it
     /// is shown, shows it otherwise.
     ToggleWindow,
+    /// Open the newer release's page.
+    OpenUpdate,
     Quit,
 }
 
@@ -33,6 +35,8 @@ pub struct TrayState {
     pub noise: Option<app_core::DenoiseLevel>,
     /// Whether the window is shown.
     pub window: bool,
+    /// A newer release, `major.minor.patch`.
+    pub update: Option<[u16; 3]>,
 }
 
 impl TrayState {
@@ -43,7 +47,17 @@ impl TrayState {
             preset: st.preset,
             noise: st.neural_denoise,
             window,
+            update: st.update_available.as_deref().and_then(|v| {
+                let mut it = v.split('.').map(|n| n.parse::<u16>().ok());
+                Some([it.next()??, it.next()??, it.next()??])
+            }),
         }
+    }
+
+    /// Label of the update item, when there is a newer release.
+    pub fn update_label(&self) -> Option<String> {
+        self.update
+            .map(|[a, b, c]| format!("Update to {a}.{b}.{c}…"))
     }
 
     /// Label of the window item.
@@ -201,6 +215,15 @@ impl ksni::Tray for VoiceStripTray {
             }
             .into(),
             MenuItem::Separator,
+            StandardItem {
+                label: self.state.update_label().unwrap_or_default(),
+                visible: self.state.update.is_some(),
+                activate: Box::new(|t: &mut Self| {
+                    let _ = t.tx.send(TrayCmd::OpenUpdate);
+                }),
+                ..Default::default()
+            }
+            .into(),
             StandardItem {
                 label: self.state.window_label().into(),
                 activate: Box::new(|t: &mut Self| {

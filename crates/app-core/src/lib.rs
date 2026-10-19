@@ -8,6 +8,7 @@ pub mod presets;
 pub mod profiles;
 pub mod remote;
 pub mod tuning;
+pub mod updates;
 
 pub use controller::{CalibrationStatus, Controller, DetectorState, ModelState, ModelUse, UiState};
 pub use denoise_neural::model;

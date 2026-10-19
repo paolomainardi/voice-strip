@@ -267,6 +267,7 @@ impl VoiceStrip {
                 }
                 Action::DownloadModel => self.controller.download_model(),
                 Action::DismissModelPrompt => self.controller.dismiss_model_prompt(),
+                Action::OpenUpdate => open_url(app_core::updates::RELEASES_PAGE),
             }
         }
     }
@@ -508,6 +509,7 @@ impl VoiceStrip {
             tray::TrayCmd::SetMuted(m) => self.controller.set_muted(m),
             tray::TrayCmd::SetPreset(p) => self.controller.set_preset(p),
             tray::TrayCmd::SetNoise(n) => self.controller.set_neural_denoise(n),
+            tray::TrayCmd::OpenUpdate => open_url(app_core::updates::RELEASES_PAGE),
             tray::TrayCmd::ToggleWindow if *effect == Effect::Quit => {}
             tray::TrayCmd::ToggleWindow => {
                 *effect = if self.window_open {
@@ -868,6 +870,9 @@ fn main() -> eframe::Result<()> {
         if let Some(dir) = app_core::profiles::default_dir() {
             controller.set_profiles_dir(dir);
         }
+        if let Some(dir) = app_core::updates::settings_dir() {
+            controller.enable_update_check(dir);
+        }
         let label = args
             .input
             .as_deref()
@@ -1048,6 +1053,22 @@ impl eframe::App for Window {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.0.borrow_mut().ui(ui, frame);
+    }
+}
+
+/// Opens `url` in the default browser.
+fn open_url(url: &str) {
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    match std::process::Command::new(opener).arg(url).spawn() {
+        // Reaped off the UI thread, so it does not linger as a zombie.
+        Ok(mut child) => {
+            std::thread::spawn(move || child.wait());
+        }
+        Err(e) => eprintln!("voice-strip: cannot open {url} ({e})"),
     }
 }
 
