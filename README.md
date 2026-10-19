@@ -104,11 +104,11 @@ Two views show it: a vintage faceplate for everyday use, and an advanced view wi
 Each [release](https://github.com/paolomainardi/voice-strip/releases) has a Linux x86_64 binary. It needs PipeWire, a Wayland or X11 desktop and a Vulkan driver, and runs on distributions with glibc 2.39 or later (Ubuntu 24.04, Debian 13, Fedora 40, Arch Linux and newer). On older ones, build from source.
 
 ```bash
-curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.3.0/voice-strip-v0.3.0-linux-x86_64.tar.gz
-curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.3.0/SHA256SUMS
+curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.3.1/voice-strip-v0.3.1-linux-x86_64.tar.gz
+curl -LO https://github.com/paolomainardi/voice-strip/releases/download/v0.3.1/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
-tar -xzf voice-strip-v0.3.0-linux-x86_64.tar.gz
-./voice-strip-v0.3.0-linux-x86_64/voice-strip
+tar -xzf voice-strip-v0.3.1-linux-x86_64.tar.gz
+./voice-strip-v0.3.1-linux-x86_64/voice-strip
 ```
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app. Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`.

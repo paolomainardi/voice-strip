@@ -4,6 +4,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-19
+
 ### Added
 
 - Cmd+W on macOS and Ctrl+W on Linux hide the window while the app keeps running.
@@ -94,7 +96,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/paolomainardi/voice-strip/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/paolomainardi/voice-strip/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/paolomainardi/voice-strip/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/paolomainardi/voice-strip/compare/v0.1.0...v0.2.0
