@@ -17,6 +17,7 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 ### Fixed
 
 - Noise removal switched itself off on macOS after 15 to 30 s: it now tells macOS its deadline, so the cores keep up.
+- Calibration no longer reports a quiet room as too noisy: rumble, DC offset and single clicks during the silence no longer count as noise.
 
 ## [0.3.0] - 2026-10-18
 
