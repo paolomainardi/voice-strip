@@ -1032,7 +1032,9 @@ fn main() -> eframe::Result<()> {
     }));
     // macOS: one window for the whole run, hidden for --background and
     // whenever the user hides it.
+    // The `return` is the last statement only on macOS.
     #[cfg(target_os = "macos")]
+    #[allow(clippy::needless_return)]
     {
         let visible = screenshot || !args.background;
         app.borrow_mut().window_open = visible;
