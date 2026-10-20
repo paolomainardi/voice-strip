@@ -4,6 +4,10 @@
       <stop stop-color="#161A1F"/>
       <stop offset="1" stop-color="#0E1013"/>
     </linearGradient>
+    <linearGradient id="rim" x2="0" y2="1">
+      <stop stop-color="#B7AC93" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#B7AC93" stop-opacity=".12"/>
+    </linearGradient>
     <filter id="shadow" x="-25%" y="-25%" width="150%" height="160%">
       <feGaussianBlur stdDeviation="20"/>
     </filter>
@@ -17,6 +21,7 @@
   <rect class="detail" x="100" y="121" width="824" height="824" rx="185" fill="#0E1013" opacity=".45" filter="url(#shadow)"/>
   <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A1F17"/>
   <rect x="107" y="107" width="810" height="810" rx="178" fill="url(#panel)" stroke="#B7AC93" stroke-opacity=".24" stroke-width="2"/>
+  <rect class="detail" x="102" y="102" width="820" height="820" rx="183" fill="none" stroke="url(#rim)" stroke-width="4"/>
   <g class="detail" fill="#B7AC93" stroke="#0E1013" stroke-width="4">
     <circle cx="199" cy="199" r="21"/>
     <circle cx="825" cy="825" r="21"/>

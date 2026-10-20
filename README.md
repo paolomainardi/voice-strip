@@ -178,11 +178,11 @@ For distributions older than the release binary supports, or to work on Voice St
 - A C toolchain, `pkg-config`, `clang` with libclang (to generate the PipeWire bindings), the PipeWire development files and `curl`.
 - To run: a PipeWire session, a Wayland or X11 desktop and a Vulkan driver for your GPU.
 
-| Distribution   | Packages                                                                                                                                                                                |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Arch Linux     | `pacman -S rust clang pkgconf pipewire just curl` plus `vulkan-radeon`, `vulkan-intel` or `nvidia-utils`                                                                                |
+| Distribution | Packages |
+|---|---|
+| Arch Linux | `pacman -S rust clang pkgconf pipewire just curl` plus `vulkan-radeon`, `vulkan-intel` or `nvidia-utils` |
 | Debian, Ubuntu | `apt install build-essential pkg-config clang libclang-dev libpipewire-0.3-dev curl mesa-vulkan-drivers`, Rust from rustup, then `cargo install just` (Ubuntu 24.04 packages just 1.21) |
-| Fedora         | `dnf install gcc clang clang-devel pkgconf pipewire-devel just curl mesa-vulkan-drivers`, Rust from rustup                                                                              |
+| Fedora | `dnf install gcc clang clang-devel pkgconf pipewire-devel just curl mesa-vulkan-drivers`, Rust from rustup |
 
 The Debian, Ubuntu and Fedora lists are checked by building in clean Ubuntu 24.04 and Fedora 42 containers. Then:
 
@@ -248,11 +248,11 @@ The exit status is 0 on success, 1 when the app is not running or refuses the co
 
 Processing delay from the microphone to the virtual microphone:
 
-|                                                      | Noise removal off | Noise removal on |
-| ---------------------------------------------------- | ----------------- | ---------------- |
-| Linux, PipeWire quantum 480                          | 1.5 ms            | 21.5 ms          |
-| Linux, quantum 256 (PipeWire's power-of-two default) | 1.5 ms            | 29.5 ms          |
-| macOS, 32-sample callbacks                           | 1.5 ms            | 23.5 ms          |
+| | Noise removal off | Noise removal on |
+|---|---|---|
+| Linux, PipeWire quantum 480 | 1.5 ms | 21.5 ms |
+| Linux, quantum 256 (PipeWire's power-of-two default) | 1.5 ms | 29.5 ms |
+| macOS, 32-sample callbacks | 1.5 ms | 23.5 ms |
 
 On macOS, reaching the `Voice Strip` device adds about 3.5 ms (resampler and transport margin). The headphone monitor measures about 10 ms from microphone to speakers on a MacBook. On Linux, `default.clock.power-of-two-quantum = false` in the PipeWire configuration keeps the 480 quantum Voice Strip asks for. Details: [docs/denoise.md](docs/denoise.md).
 
@@ -295,17 +295,17 @@ Measurements that need extra material, an idle machine or real devices are separ
 
 `just test-e2e` plays noisy speech through every preset and noise removal level on a private PipeWire server, so it never touches your audio setup. It checks loudness, true peak, delay, dropouts and noise in the pauses, and leaves a report and one WAV per scenario in `target/e2e/` for listening.
 
-| Crate                      | Role                                                                            |
-| -------------------------- | ------------------------------------------------------------------------------- |
-| `crates/dsp`               | Processing chain, no I/O                                                        |
-| `crates/denoise-neural`    | DeepFilterNet3 worker behind `dsp::FrameDenoiser`, model download               |
-| `crates/engine`            | Realtime engine, lock-free queues, chain swap                                   |
-| `crates/vdev-linux`        | PipeWire backend and virtual microphone                                         |
-| `crates/vdev-macos-driver` | macOS virtual microphone: Core Audio driver loaded by `coreaudiod`              |
-| `crates/vdev-macos`        | macOS backend: capture, resampling, the driver's shared ring, headphone monitor |
-| `crates/app-core`          | Presets, tuning, calibration, controller, remote control                        |
-| `crates/ui-kit`            | Toolkit-neutral widgets and views                                               |
-| `crates/app`               | Desktop app: egui on the GPU (wgpu), tray icon or menu bar item                 |
+| Crate | Role |
+|---|---|
+| `crates/dsp` | Processing chain, no I/O |
+| `crates/denoise-neural` | DeepFilterNet3 worker behind `dsp::FrameDenoiser`, model download |
+| `crates/engine` | Realtime engine, lock-free queues, chain swap |
+| `crates/vdev-linux` | PipeWire backend and virtual microphone |
+| `crates/vdev-macos-driver` | macOS virtual microphone: Core Audio driver loaded by `coreaudiod` |
+| `crates/vdev-macos` | macOS backend: capture, resampling, the driver's shared ring, headphone monitor |
+| `crates/app-core` | Presets, tuning, calibration, controller, remote control |
+| `crates/ui-kit` | Toolkit-neutral widgets and views |
+| `crates/app` | Desktop app: egui on the GPU (wgpu), tray icon or menu bar item |
 
 ## Contribute
 
