@@ -169,7 +169,7 @@ just start                    # build, then run in the background on the default
 
 - **Microphone permission.** macOS asks once, for the app that starts Voice Strip: start it from Terminal. A process started over SSH is never granted the microphone and records silence.
 - **Manage it.** `just status`, `just logs` and `just stop`; `just start --input <UID>` starts on a given microphone (see `just devices`).
-- **The app.** `just macos-app` builds `target/Voice Strip.app`, and `just start` runs from it, so the Dock and Cmd+Tab show Voice Strip with its icon. `voice-strip app status` shows the copy in `~/Applications`, `voice-strip app install` refreshes it (also after `just upgrade`), and `voice-strip app uninstall` removes it.
+- **The app.** `just macos-app` builds `target/macos.noindex/Voice Strip.app`, and `just start` runs from it, so the Dock and Cmd+Tab show Voice Strip with its icon. The `.noindex` directory keeps the clone's bundle out of Spotlight. `voice-strip app status` shows the copy in `~/Applications`, `voice-strip app install` refreshes it (also after `just upgrade`), and `voice-strip app uninstall` removes it.
 - **The driver.** `voice-strip driver status` shows the installed and the shipped driver, `voice-strip driver install` installs or replaces it, and `voice-strip driver uninstall` removes it (in a clone the binary is `target/release/voice-strip`). When a release ships a new driver, the app's footer says so.
 - **Signed builds.** `VOICE_STRIP_SIGN_IDENTITY` signs the driver with your identity instead (for example a Developer ID), and `VOICE_STRIP_TEAM` makes `voice-strip driver install` accept only that team's signature. See `scripts/macos-driver.sh` for signing over SSH.
 

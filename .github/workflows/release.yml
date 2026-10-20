@@ -71,7 +71,7 @@ jobs:
           name="voice-strip-${TAG}-macos-arm64"
           mkdir -p "dist/$name"
           app="dist/$name/Voice Strip.app"
-          cp -R "target/Voice Strip.app" "$app"
+          cp -R "target/macos.noindex/Voice Strip.app" "$app"
           strip "$app/Contents/MacOS/voice-strip"
           codesign --force --sign - "$app"
           codesign --verify --strict "$app"
