@@ -101,14 +101,22 @@ impl ksni::Tray for VoiceStripTray {
         "Voice Strip".into()
     }
 
-    fn icon_name(&self) -> String {
-        if self.state.muted {
-            "microphone-sensitivity-muted".into()
-        } else if self.state.on {
-            "audio-input-microphone".into()
-        } else {
-            "microphone-sensitivity-muted".into()
-        }
+    fn icon_pixmap(&self) -> Vec<ksni::Icon> {
+        [16, 22, 32, 48]
+            .into_iter()
+            .map(|size| {
+                let mut argb =
+                    crate::icons::glyph(size, crate::icons::Status::of(self.state), false);
+                for pixel in argb.as_chunks_mut::<4>().0 {
+                    pixel.rotate_right(1);
+                }
+                ksni::Icon {
+                    width: size as i32,
+                    height: size as i32,
+                    data: argb,
+                }
+            })
+            .collect()
     }
 
     fn tool_tip(&self) -> ksni::ToolTip {
@@ -246,5 +254,61 @@ impl ksni::Tray for VoiceStripTray {
             }
             .into(),
         ]
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+    use ksni::Tray;
+
+    #[test]
+    fn pixmaps_follow_processing_standby_and_mute() {
+        let (tx, _) = std::sync::mpsc::channel();
+        let mut tray = VoiceStripTray::new(
+            tx,
+            TrayState {
+                on: true,
+                muted: false,
+                standby: false,
+                window: true,
+                preset: PresetId::Broadcast,
+                noise: None,
+                update: None,
+            },
+        );
+        let on = tray.icon_pixmap();
+        assert!(tray.icon_name().is_empty());
+        for (icon, size) in on.iter().zip([16, 22, 32, 48]) {
+            assert_eq!((icon.width, icon.height), (size, size));
+            assert_eq!(icon.data.len(), (size * size * 4) as usize);
+            assert!(
+                icon.data
+                    .as_chunks::<4>()
+                    .0
+                    .contains(&[255, 0xF0, 0xA2, 0x3B])
+            );
+        }
+        tray.state.on = false;
+        let off = tray.icon_pixmap();
+        tray.state.on = true;
+        tray.state.standby = true;
+        let standby = tray.icon_pixmap();
+        tray.state.muted = true;
+        let muted = tray.icon_pixmap();
+        tray.state.on = false;
+        tray.state.standby = false;
+        let muted_bypass = tray.icon_pixmap();
+        for i in 0..on.len() {
+            assert_ne!(on[i].data, off[i].data);
+            assert_eq!(off[i].data, standby[i].data);
+            assert_eq!(muted[i].data, muted_bypass[i].data);
+            assert_ne!(muted[i].data, off[i].data);
+            assert_ne!(muted[i].data, on[i].data);
+        }
+        assert_eq!(
+            crate::icons::Status::of(tray.state),
+            crate::icons::Status::Muted
+        );
     }
 }

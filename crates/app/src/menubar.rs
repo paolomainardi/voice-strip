@@ -15,7 +15,7 @@ use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 use crate::tray::{TrayCmd, TrayState};
 
 pub struct MenuBar {
-    _icon: TrayIcon,
+    icon: TrayIcon,
     on: CheckMenuItem,
     mute: CheckMenuItem,
     presets: Vec<(PresetId, CheckMenuItem)>,
@@ -30,22 +30,13 @@ pub struct MenuBar {
 
 /// The menu bar glyph: the app's three level bars between two ticks, as a
 /// template image (macOS tints it for light and dark menu bars).
-fn glyph() -> Icon {
-    const S: u32 = 36;
-    let mut rgba = vec![0u8; (S * S * 4) as usize];
-    let mut fill = |x0: u32, y0: u32, x1: u32, y1: u32| {
-        for y in y0..y1 {
-            for x in x0..x1 {
-                rgba[((y * S + x) * 4 + 3) as usize] = 255;
-            }
-        }
-    };
-    fill(2, 17, 8, 19);
-    fill(10, 11, 13, 25);
-    fill(17, 5, 20, 31);
-    fill(24, 11, 27, 25);
-    fill(29, 17, 34, 19);
-    Icon::from_rgba(rgba, S, S).expect("valid glyph")
+fn glyph(state: TrayState) -> Icon {
+    Icon::from_rgba(
+        crate::icons::glyph(36, crate::icons::Status::of(state), true),
+        36,
+        36,
+    )
+    .expect("valid glyph")
 }
 
 impl MenuBar {
@@ -98,12 +89,12 @@ impl MenuBar {
 
         let icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu.clone()))
-            .with_icon_templated(glyph())
+            .with_icon_templated(glyph(state))
             .with_tooltip("Voice Strip")
             .build()
             .map_err(|e| e.to_string())?;
         Ok(Self {
-            _icon: icon,
+            icon,
             on,
             mute,
             presets,
@@ -157,6 +148,11 @@ impl MenuBar {
                     .unwrap_or(0);
                 let _ = self.menu.insert(&self.update, at);
             }
+        }
+        if crate::icons::Status::of(state) != crate::icons::Status::of(self.state)
+            && let Err(error) = self.icon.set_icon_templated(Some(glyph(state)))
+        {
+            eprintln!("voice-strip: menu bar icon: {error}");
         }
         self.state = state;
         self.on.set_checked(state.on);

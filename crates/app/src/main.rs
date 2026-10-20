@@ -11,6 +11,7 @@
 
 mod driver;
 mod fonts;
+mod icons;
 #[cfg(target_os = "macos")]
 mod menubar;
 mod painter;
@@ -1078,6 +1079,7 @@ fn run_window(
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_app_id(APP_ID)
+            .with_icon(icons::app_icon())
             .with_title("Voice Strip")
             .with_inner_size(initial)
             .with_visible(visible)

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="panel" x2="0" y2="1">
+      <stop stop-color="#161A1F"/>
+      <stop offset="1" stop-color="#0E1013"/>
+    </linearGradient>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="160%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <g id="mark">
+      <path d="M224 494h108v36H224z M368 386h54v252h-54z M494 278h54v468h-54z M620 386h54v252h-54z M710 494h90v36h-90z"/>
+    </g>
+  </defs>
+  <rect class="detail" x="100" y="121" width="824" height="824" rx="185" fill="#0E1013" opacity=".45" filter="url(#shadow)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2A1F17"/>
+  <rect x="107" y="107" width="810" height="810" rx="178" fill="url(#panel)" stroke="#B7AC93" stroke-opacity=".24" stroke-width="2"/>
+  <g class="detail" fill="#B7AC93" stroke="#0E1013" stroke-width="4">
+    <circle cx="199" cy="199" r="21"/>
+    <circle cx="825" cy="825" r="21"/>
+  </g>
+  <g class="detail" stroke="#2A1F17" stroke-width="5" stroke-linecap="round">
+    <path d="m190 208 18-18 M816 834l18-18"/>
+  </g>
+  <use class="detail full-mark" href="#mark" fill="#F0A23B" opacity=".5" filter="url(#glow)"/>
+  <use class="full-mark" href="#mark" fill="#F0A23B"/>
+  <path class="small-mark" display="none" fill="#F0A23B" d="M192 512h128v64H192z M384 384h64v320h-64z M512 256h64v576h-64z M640 384h64v320h-64z M768 512h128v64H768z"/>
+</svg>

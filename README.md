@@ -2,6 +2,8 @@
 
 # Voice Strip
 
+<img src="assets/icon/voice-strip.svg" alt="Voice Strip amber level bars on a dark rack panel" width="128" height="128">
+
 **Your microphone, through a broadcast voice chain. Live, on Linux and macOS.**
 
 <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-555" alt="Platforms: Linux and macOS"> <img src="https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-555" alt="Licence: MIT OR Apache-2.0"> <img src="https://img.shields.io/badge/built%20with-Rust-555" alt="Built with Rust">
@@ -136,6 +138,8 @@ tar -xzf voice-strip-v0.5.2-linux-x86_64.tar.gz
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app. Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`.
 
+**Desktop entry.** After putting `voice-strip` on your `PATH`, run `bash scripts/desktop.sh install` from the extracted release directory. It installs the launcher and icons for your user. The archive includes `assets/icon/`, `extras/linux/` and the install script. Run `bash scripts/desktop.sh uninstall` to remove them.
+
 ## Install on macOS from source
 
 Use this to work on Voice Strip, on a Mac that Homebrew does not cover, or without Homebrew. You build the app and its Core Audio driver yourself and sign the driver ad-hoc, which needs no Apple account.
@@ -174,11 +178,11 @@ For distributions older than the release binary supports, or to work on Voice St
 - A C toolchain, `pkg-config`, `clang` with libclang (to generate the PipeWire bindings), the PipeWire development files and `curl`.
 - To run: a PipeWire session, a Wayland or X11 desktop and a Vulkan driver for your GPU.
 
-| Distribution | Packages |
-|---|---|
-| Arch Linux | `pacman -S rust clang pkgconf pipewire just curl` plus `vulkan-radeon`, `vulkan-intel` or `nvidia-utils` |
+| Distribution   | Packages                                                                                                                                                                                |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arch Linux     | `pacman -S rust clang pkgconf pipewire just curl` plus `vulkan-radeon`, `vulkan-intel` or `nvidia-utils`                                                                                |
 | Debian, Ubuntu | `apt install build-essential pkg-config clang libclang-dev libpipewire-0.3-dev curl mesa-vulkan-drivers`, Rust from rustup, then `cargo install just` (Ubuntu 24.04 packages just 1.21) |
-| Fedora | `dnf install gcc clang clang-devel pkgconf pipewire-devel just curl mesa-vulkan-drivers`, Rust from rustup |
+| Fedora         | `dnf install gcc clang clang-devel pkgconf pipewire-devel just curl mesa-vulkan-drivers`, Rust from rustup                                                                              |
 
 The Debian, Ubuntu and Fedora lists are checked by building in clean Ubuntu 24.04 and Fedora 42 containers. Then:
 
@@ -191,6 +195,8 @@ just start                    # build, then run in the background on the default
 Select **Voice Strip Microphone** as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip. `just status`, `just logs` and `just stop` manage the running app; `just start --input <node name>` starts on a given microphone (see `just devices`).
 
 Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB) on every system: the app asks before downloading it (see [Noise removal](#noise-removal)).
+
+**Desktop entry.** Put the built binary on your `PATH`, then run `just desktop-install` to install the launcher and icons for your user. `just desktop-uninstall` removes them. Both respect `XDG_DATA_HOME` (default `~/.local/share`). To regenerate the committed icon PNGs, install librsvg's `rsvg-convert` and run `just icons`; it is not needed at runtime.
 
 ## First run: calibrate
 
@@ -242,11 +248,11 @@ The exit status is 0 on success, 1 when the app is not running or refuses the co
 
 Processing delay from the microphone to the virtual microphone:
 
-| | Noise removal off | Noise removal on |
-|---|---|---|
-| Linux, PipeWire quantum 480 | 1.5 ms | 21.5 ms |
-| Linux, quantum 256 (PipeWire's power-of-two default) | 1.5 ms | 29.5 ms |
-| macOS, 32-sample callbacks | 1.5 ms | 23.5 ms |
+|                                                      | Noise removal off | Noise removal on |
+| ---------------------------------------------------- | ----------------- | ---------------- |
+| Linux, PipeWire quantum 480                          | 1.5 ms            | 21.5 ms          |
+| Linux, quantum 256 (PipeWire's power-of-two default) | 1.5 ms            | 29.5 ms          |
+| macOS, 32-sample callbacks                           | 1.5 ms            | 23.5 ms          |
 
 On macOS, reaching the `Voice Strip` device adds about 3.5 ms (resampler and transport margin). The headphone monitor measures about 10 ms from microphone to speakers on a MacBook. On Linux, `default.clock.power-of-two-quantum = false` in the PipeWire configuration keeps the 480 quantum Voice Strip asks for. Details: [docs/denoise.md](docs/denoise.md).
 
@@ -289,17 +295,17 @@ Measurements that need extra material, an idle machine or real devices are separ
 
 `just test-e2e` plays noisy speech through every preset and noise removal level on a private PipeWire server, so it never touches your audio setup. It checks loudness, true peak, delay, dropouts and noise in the pauses, and leaves a report and one WAV per scenario in `target/e2e/` for listening.
 
-| Crate | Role |
-|---|---|
-| `crates/dsp` | Processing chain, no I/O |
-| `crates/denoise-neural` | DeepFilterNet3 worker behind `dsp::FrameDenoiser`, model download |
-| `crates/engine` | Realtime engine, lock-free queues, chain swap |
-| `crates/vdev-linux` | PipeWire backend and virtual microphone |
-| `crates/vdev-macos-driver` | macOS virtual microphone: Core Audio driver loaded by `coreaudiod` |
-| `crates/vdev-macos` | macOS backend: capture, resampling, the driver's shared ring, headphone monitor |
-| `crates/app-core` | Presets, tuning, calibration, controller, remote control |
-| `crates/ui-kit` | Toolkit-neutral widgets and views |
-| `crates/app` | Desktop app: egui on the GPU (wgpu), tray icon or menu bar item |
+| Crate                      | Role                                                                            |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `crates/dsp`               | Processing chain, no I/O                                                        |
+| `crates/denoise-neural`    | DeepFilterNet3 worker behind `dsp::FrameDenoiser`, model download               |
+| `crates/engine`            | Realtime engine, lock-free queues, chain swap                                   |
+| `crates/vdev-linux`        | PipeWire backend and virtual microphone                                         |
+| `crates/vdev-macos-driver` | macOS virtual microphone: Core Audio driver loaded by `coreaudiod`              |
+| `crates/vdev-macos`        | macOS backend: capture, resampling, the driver's shared ring, headphone monitor |
+| `crates/app-core`          | Presets, tuning, calibration, controller, remote control                        |
+| `crates/ui-kit`            | Toolkit-neutral widgets and views                                               |
+| `crates/app`               | Desktop app: egui on the GPU (wgpu), tray icon or menu bar item                 |
 
 ## Contribute
 

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Voice Strip
+Comment=Shape your live microphone with a broadcast voice chain
+Exec=voice-strip
+Icon=io.github.paolomainardi.voicestrip
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupWMClass=io.github.paolomainardi.voicestrip

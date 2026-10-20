@@ -4,6 +4,11 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Faceplate app icon for the window and macOS Dock, with matching tray and menu bar glyphs for processing, standby, bypass and mute.
+- Linux desktop launcher and icons, included in release archives and installed from source with `just desktop-install`.
+
 ## [0.5.2] - 2026-10-20
 
 ### Fixed

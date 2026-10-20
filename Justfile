@@ -206,6 +206,23 @@ omarchy-plugin:
     omarchy-shell shell rescanPlugins
     omarchy plugin enable io.github.paolomainardi.voicestrip
 
+# Render app icon PNGs from the SVG (requires rsvg-convert)
+[group('dev')]
+icons:
+    scripts/icons.sh
+
+# Install the Linux launcher and icons for this user (binary must be on PATH)
+[group('app')]
+[linux]
+desktop-install:
+    scripts/desktop.sh install
+
+# Remove this user's Linux launcher and icons
+[group('app')]
+[linux]
+desktop-uninstall:
+    scripts/desktop.sh uninstall
+
 # ---------------------------------------------------------------- macos
 
 # Build target/VoiceStrip.driver, ad-hoc signed (VOICE_STRIP_SIGN_IDENTITY: signed with it)
