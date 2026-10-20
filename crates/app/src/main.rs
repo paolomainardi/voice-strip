@@ -12,6 +12,7 @@
 mod driver;
 mod fonts;
 mod icons;
+mod launcher;
 #[cfg(target_os = "macos")]
 mod menubar;
 mod painter;
@@ -43,7 +44,8 @@ const USAGE: &str =
 [--noise off|light|medium|strong] [--list-devices]
        voice-strip --screenshot standard|advanced <out.png> [--scale N] [--monitor] [--model-prompt]
        voice-strip ctl <command>   (see voice-strip ctl --help)
-       voice-strip driver status | install [--if-needed] | uninstall   (macOS virtual microphone)";
+       voice-strip driver status | install [--if-needed] | uninstall   (macOS virtual microphone)
+       voice-strip app status | install | uninstall   (macOS app in ~/Applications, for Spotlight)";
 
 #[derive(Default)]
 struct Args {
@@ -862,6 +864,7 @@ fn main() -> eframe::Result<()> {
     match argv.first().map(String::as_str) {
         Some("ctl") => std::process::exit(app_core::remote::client::cli(&argv[1..])),
         Some("driver") => std::process::exit(driver::cli(&argv[1..])),
+        Some("app") => std::process::exit(launcher::cli(&argv[1..])),
         // For clients that draw with the app's type while it is closed.
         Some("--fonts-dir") => {
             println!("{}", fonts::files_dir().display());

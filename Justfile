@@ -7,6 +7,8 @@ set positional-arguments
 
 bin := "target/release/voice-strip"
 log := "target/voice-strip.log"
+# The binary inside the macOS app bundle (`just macos-app`), so the Dock shows "Voice Strip".
+app := "target/Voice Strip.app/Contents/MacOS/voice-strip"
 
 # Show this overview
 [group('help')]
@@ -52,14 +54,14 @@ start *args: build stop
 # Start the app in the background (standard view), from Terminal for the microphone permission
 [group('app')]
 [macos]
-start *args: build stop
+start *args: macos-app stop
     #!/usr/bin/env bash
     set -euo pipefail
     args=("$@")
     if [[ -n "${VOICE_STRIP_INPUT:-}" && " $* " != *" --input "* ]]; then
         args+=(--input "$VOICE_STRIP_INPUT")
     fi
-    nohup "{{bin}}" "${args[@]}" >"{{log}}" 2>&1 </dev/null &
+    nohup "{{app}}" "${args[@]}" >"{{log}}" 2>&1 </dev/null &
     sleep 2
     just status
 
@@ -236,6 +238,18 @@ uninstall:
 [macos]
 macos-driver:
     scripts/macos-driver.sh
+
+# Build target/Voice Strip.app, the macOS app bundle with the Voice Strip name and icon, ad-hoc signed (VOICE_STRIP_SIGN_IDENTITY: signed with it)
+[group('macos')]
+[macos]
+macos-app:
+    scripts/macos-app.sh
+
+# Copy the app bundle to ~/Applications, so Spotlight and Launchpad open it
+[group('macos')]
+[macos]
+macos-app-install: macos-app
+    "{{app}}" app install
 
 # Install target/VoiceStrip.driver and restart coreaudiod, through `voice-strip driver install` (asks for your password)
 [group('macos')]

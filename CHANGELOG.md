@@ -4,6 +4,15 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- macOS `Voice Strip.app` bundle with the Voice Strip name, icon and microphone usage description, built by `just macos-app` and shipped in the release archive.
+- macOS `voice-strip app install`, `status` and `uninstall` commands, and a `just macos-app-install` recipe, to put the app in `~/Applications` so Spotlight and Launchpad open it.
+
+### Changed
+
+- The macOS release archive ships `Voice Strip.app` instead of a bare `voice-strip` binary, and `just start` runs the app from its bundle.
+
 ## [0.6.0] - 2026-10-20
 
 ### Added
