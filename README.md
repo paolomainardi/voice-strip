@@ -132,7 +132,7 @@ Then select **Voice Strip** (macOS) or **Voice Strip Microphone** (Linux) as the
 
 Follow the steps for your current install; calibrations and settings stay where they are.
 
-1. **macOS, from a clone.** Run from the clone directory:
+- **macOS, from a clone.** Run from the clone directory:
 
    ```bash
    just stop
@@ -146,7 +146,7 @@ Follow the steps for your current install; calibrations and settings stay where 
 
    Keep the clone for development, or delete it.
 
-2. **Linux, installed from a clone.** Uninstall from the clone directory first to avoid competing binaries on PATH:
+- **Linux, installed from a clone.** Uninstall from the clone directory first to avoid competing binaries on PATH:
 
    ```bash
    just uninstall
@@ -154,11 +154,9 @@ Follow the steps for your current install; calibrations and settings stay where 
    voice-strip app install
    ```
 
-3. **Linux, from a release archive.** Replace `/path/to/voice-strip` with the binary you copied:
+- **Linux, from a release archive.** Delete the binary you copied (replace `/path/to/voice-strip`). `voice-strip app install` then points an existing launcher at the Homebrew binary:
 
    ```bash
-   # If you installed its launcher:
-   "/path/to/voice-strip" app uninstall
    rm -- "/path/to/voice-strip"
    brew install paolomainardi/tap/voice-strip
    voice-strip app install
