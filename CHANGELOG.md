@@ -4,6 +4,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-20
+
 ### Added
 
 - Linux `voice-strip app install`, `status` and `uninstall` commands install the desktop launcher and icons from any binary, including Homebrew and release archives.
@@ -171,7 +173,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/paolomainardi/voice-strip/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/paolomainardi/voice-strip/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/paolomainardi/voice-strip/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/paolomainardi/voice-strip/compare/v0.5.1...v0.5.2
