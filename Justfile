@@ -211,17 +211,23 @@ omarchy-plugin:
 icons:
     scripts/icons.sh
 
-# Install the Linux launcher and icons for this user (binary must be on PATH)
+# Build and install the Linux app, launcher and icons for this user
 [group('app')]
 [linux]
-desktop-install:
-    scripts/desktop.sh install
+install:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --release --locked -p app
+    install_dir=${XDG_BIN_HOME:-"$HOME/.local/bin"}
+    install -Dm755 "{{bin}}" "$install_dir/voice-strip"
+    scripts/desktop.sh install "$install_dir/voice-strip"
 
-# Remove this user's Linux launcher and icons
+# Remove this user's Linux app, launcher and icons without stopping the app
 [group('app')]
 [linux]
-desktop-uninstall:
+uninstall:
     scripts/desktop.sh uninstall
+    rm -f -- "${XDG_BIN_HOME:-$HOME/.local/bin}/voice-strip"
 
 # ---------------------------------------------------------------- macos
 
