@@ -21,7 +21,7 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 
 - [Highlights](#highlights)
 - [The chain](#the-chain)
-- [Install with Homebrew](#install-with-homebrew)
+- [Install with Homebrew](#install-with-homebrew): [switching to Homebrew](#switching-to-homebrew)
 - [Install on Linux from a release](#install-on-linux-from-a-release)
 - [Install on macOS from source](#install-on-macos-from-source)
 - [Build from source on Linux](#build-from-source-on-linux)
@@ -127,6 +127,42 @@ Then select **Voice Strip** (macOS) or **Voice Strip Microphone** (Linux) as the
 
 - **Update.** `brew upgrade voice-strip`. On macOS, run `voice-strip app install` again to refresh the copy in Applications. When a release ships a new driver, the app's footer says so: run `voice-strip driver install` again.
 - **Uninstall.** Run `voice-strip app uninstall` on either system, and `voice-strip driver uninstall` on macOS. Then `brew uninstall voice-strip`.
+
+### Switching to Homebrew
+
+Follow the steps for your current install; calibrations and settings stay where they are.
+
+1. **macOS, from a clone.** Run from the clone directory:
+
+   ```bash
+   just stop
+   # If you used just macos-app-install:
+   "target/macos.noindex/Voice Strip.app/Contents/MacOS/voice-strip" app uninstall
+   brew install paolomainardi/tap/voice-strip
+   # Replace the installed driver only if its code differs:
+   voice-strip driver install --if-needed
+   voice-strip app install
+   ```
+
+   Keep the clone for development, or delete it.
+
+2. **Linux, installed from a clone.** Uninstall from the clone directory first to avoid competing binaries on PATH:
+
+   ```bash
+   just uninstall
+   brew install paolomainardi/tap/voice-strip
+   voice-strip app install
+   ```
+
+3. **Linux, from a release archive.** Replace `/path/to/voice-strip` with the binary you copied:
+
+   ```bash
+   # If you installed its launcher:
+   "/path/to/voice-strip" app uninstall
+   rm -- "/path/to/voice-strip"
+   brew install paolomainardi/tap/voice-strip
+   voice-strip app install
+   ```
 
 ## Install on Linux from a release
 
