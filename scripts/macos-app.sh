@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds "target/Voice Strip.app", the macOS app bundle, and signs it. macOS
+# Builds "target/macos.noindex/Voice Strip.app", the macOS app bundle, and signs it. macOS
 # only. The bundle makes the Dock, Cmd+Tab and Spotlight show "Voice Strip"
 # with its icon, and gives the microphone permission to the app itself.
 #
@@ -22,9 +22,11 @@ fi
 cd "$(dirname "$0")/.."
 cargo build --release -p app
 
-BUNDLE="target/Voice Strip.app"
+BUNDLE="target/macos.noindex/Voice Strip.app"
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' crates/app/Cargo.toml | head -n 1)
 
+# Remove the old clone bundle so Spotlight no longer lists it.
+rm -rf -- "target/Voice Strip.app"
 rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 sed "s/@VERSION@/$version/" extras/macos/Info.plist > "$BUNDLE/Contents/Info.plist"

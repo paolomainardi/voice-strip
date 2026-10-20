@@ -13,6 +13,10 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 - The macOS release archive ships `Voice Strip.app` instead of a bare `voice-strip` binary, and `just start` runs the app from its bundle.
 
+### Fixed
+
+- macOS clone builds keep their app bundle out of Spotlight, leaving the installed copy as the search result.
+
 ## [0.6.0] - 2026-10-20
 
 ### Added

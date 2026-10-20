@@ -8,7 +8,7 @@ set positional-arguments
 bin := "target/release/voice-strip"
 log := "target/voice-strip.log"
 # The binary inside the macOS app bundle (`just macos-app`), so the Dock shows "Voice Strip".
-app := "target/Voice Strip.app/Contents/MacOS/voice-strip"
+app := "target/macos.noindex/Voice Strip.app/Contents/MacOS/voice-strip"
 
 # Show this overview
 [group('help')]
@@ -239,7 +239,7 @@ uninstall:
 macos-driver:
     scripts/macos-driver.sh
 
-# Build target/Voice Strip.app, the macOS app bundle with the Voice Strip name and icon, ad-hoc signed (VOICE_STRIP_SIGN_IDENTITY: signed with it)
+# Build target/macos.noindex/Voice Strip.app, the macOS app bundle with the Voice Strip name and icon, ad-hoc signed (VOICE_STRIP_SIGN_IDENTITY: signed with it)
 [group('macos')]
 [macos]
 macos-app:

@@ -14,6 +14,18 @@
 //! With `VOICE_STRIP_TEAM` set, only a bundle signed by that team installs.
 //! Linux needs no driver.
 
+#[cfg(any(target_os = "macos", test))]
+const SHIPPED_DIRS: [&str; 6] = [
+    "../libexec",
+    "..",
+    ".",
+    // Inside `Voice Strip.app/Contents/MacOS`, next to the bundle.
+    "../../../libexec",
+    "../../..",
+    // Clone bundle: `target/macos.noindex/Voice Strip.app/Contents/MacOS`.
+    "../../../..",
+];
+
 const USAGE: &str = "usage: voice-strip driver status | install [--if-needed] | uninstall";
 
 #[cfg(not(target_os = "macos"))]
@@ -66,16 +78,10 @@ mod mac {
         }
         let exe = std::env::current_exe().ok()?.canonicalize().ok()?;
         let dir = exe.parent()?;
-        [
-            dir.join("../libexec").join(NAME),
-            dir.join("..").join(NAME),
-            dir.join(NAME),
-            // Inside `Voice Strip.app/Contents/MacOS`, next to the bundle.
-            dir.join("../../../libexec").join(NAME),
-            dir.join("../../..").join(NAME),
-        ]
-        .into_iter()
-        .find(|p| p.join("Contents/Info.plist").is_file())
+        super::SHIPPED_DIRS
+            .into_iter()
+            .map(|relative| dir.join(relative).join(NAME))
+            .find(|p| p.join("Contents/Info.plist").is_file())
     }
 
     fn plist(bundle: &Path, key: &str) -> Option<String> {
@@ -418,6 +424,54 @@ mod mac {
         } else {
             eprintln!("voice-strip driver: not removed");
             1
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SHIPPED_DIRS;
+    use std::path::{Component, Path, PathBuf};
+
+    #[test]
+    fn shipped_driver_candidates_cover_supported_layouts() {
+        for (binary_dir, expected_driver) in [
+            (
+                "/clone/target/macos.noindex/Voice Strip.app/Contents/MacOS",
+                "/clone/target/VoiceStrip.driver",
+            ),
+            ("/clone/target/release", "/clone/target/VoiceStrip.driver"),
+            (
+                "/release/Voice Strip.app/Contents/MacOS",
+                "/release/VoiceStrip.driver",
+            ),
+            (
+                "/opt/homebrew/Cellar/voice-strip/0.6.0/Voice Strip.app/Contents/MacOS",
+                "/opt/homebrew/Cellar/voice-strip/0.6.0/libexec/VoiceStrip.driver",
+            ),
+            (
+                "/opt/homebrew/Cellar/voice-strip/0.6.0/bin",
+                "/opt/homebrew/Cellar/voice-strip/0.6.0/libexec/VoiceStrip.driver",
+            ),
+        ] {
+            let candidates = SHIPPED_DIRS.map(|relative| {
+                Path::new(binary_dir)
+                    .join(relative)
+                    .join("VoiceStrip.driver")
+                    .components()
+                    .fold(PathBuf::new(), |mut path, component| {
+                        if component == Component::ParentDir {
+                            path.pop();
+                        } else {
+                            path.push(component);
+                        }
+                        path
+                    })
+            });
+            assert!(
+                candidates.contains(&PathBuf::from(expected_driver)),
+                "driver not found for {binary_dir}: {candidates:?}"
+            );
         }
     }
 }

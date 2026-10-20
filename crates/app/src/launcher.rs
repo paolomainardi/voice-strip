@@ -2,7 +2,7 @@
 //! user's Applications folder, so Spotlight, Launchpad and Finder can open it.
 //!
 //! The app is the `Voice Strip.app` bundle that holds this binary: Homebrew's
-//! `Voice Strip.app`, or `target/Voice Strip.app` in a clone
+//! `Voice Strip.app`, or `target/macos.noindex/Voice Strip.app` in a clone
 //! (`just macos-app`). Installing copies it to `~/Applications`. The copy is
 //! not updated by `brew upgrade`, so the command is run again after one.
 //! Linux has no bundle: its launcher comes from `scripts/desktop.sh`.
@@ -113,7 +113,7 @@ mod mac {
         let Some(src) = current() else {
             eprintln!(
                 "voice-strip: not running from a {NAME} bundle. In a clone, run `just macos-app`, \
-then `\"target/{NAME}/Contents/MacOS/voice-strip\" app install`."
+then `\"target/macos.noindex/{NAME}/Contents/MacOS/voice-strip\" app install`."
             );
             return 1;
         };
