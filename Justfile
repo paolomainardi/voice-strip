@@ -206,6 +206,29 @@ omarchy-plugin:
     omarchy-shell shell rescanPlugins
     omarchy plugin enable io.github.paolomainardi.voicestrip
 
+# Render app icon PNGs from the SVG (requires rsvg-convert)
+[group('dev')]
+icons:
+    scripts/icons.sh
+
+# Build and install the Linux app, launcher and icons for this user
+[group('app')]
+[linux]
+install:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build --release --locked -p app
+    install_dir=${XDG_BIN_HOME:-"$HOME/.local/bin"}
+    install -Dm755 "{{bin}}" "$install_dir/voice-strip"
+    scripts/desktop.sh install "$install_dir/voice-strip"
+
+# Remove this user's Linux app, launcher and icons without stopping the app
+[group('app')]
+[linux]
+uninstall:
+    scripts/desktop.sh uninstall
+    rm -f -- "${XDG_BIN_HOME:-$HOME/.local/bin}/voice-strip"
+
 # ---------------------------------------------------------------- macos
 
 # Build target/VoiceStrip.driver, ad-hoc signed (VOICE_STRIP_SIGN_IDENTITY: signed with it)

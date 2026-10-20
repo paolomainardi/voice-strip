@@ -2,6 +2,8 @@
 
 # Voice Strip
 
+<img src="assets/icon/voice-strip.svg" alt="Voice Strip amber level bars on a dark rack panel" width="128" height="128">
+
 **Your microphone, through a broadcast voice chain. Live, on Linux and macOS.**
 
 <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-555" alt="Platforms: Linux and macOS"> <img src="https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-555" alt="Licence: MIT OR Apache-2.0"> <img src="https://img.shields.io/badge/built%20with-Rust-555" alt="Built with Rust">
@@ -136,6 +138,8 @@ tar -xzf voice-strip-v0.5.2-linux-x86_64.tar.gz
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app. Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`.
 
+**Desktop entry.** From the extracted release directory, run `bash scripts/desktop.sh install "$PWD/voice-strip"` to install the launcher and icons for your user. The launcher uses the absolute binary path, so it works without changing your session's `PATH`. Omit the path argument to use `voice-strip` from `PATH`. The archive includes `assets/icon/`, `extras/linux/` and the install script. `bash scripts/desktop.sh uninstall` removes the launcher and icons.
+
 ## Install on macOS from source
 
 Use this to work on Voice Strip, on a Mac that Homebrew does not cover, or without Homebrew. You build the app and its Core Audio driver yourself and sign the driver ad-hoc, which needs no Apple account.
@@ -185,12 +189,15 @@ The Debian, Ubuntu and Fedora lists are checked by building in clean Ubuntu 24.0
 ```bash
 git clone https://github.com/paolomainardi/voice-strip.git
 cd voice-strip
-just start                    # build, then run in the background on the default microphone
+just install                  # build and install the app, launcher and icons
+~/.local/bin/voice-strip       # start the installed app on the default microphone
 ```
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip. `just status`, `just logs` and `just stop` manage the running app; `just start --input <node name>` starts on a given microphone (see `just devices`).
 
 Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB) on every system: the app asks before downloading it (see [Noise removal](#noise-removal)).
+
+**Install location.** `just install` installs the binary in `XDG_BIN_HOME` (default `~/.local/bin`) and the launcher and icons in `XDG_DATA_HOME` (default `~/.local/share`). The launcher works even when the binary directory is not on your session's `PATH`. `just uninstall` removes the app, launcher and icons without stopping a running instance. To regenerate the committed icon PNGs, install librsvg's `rsvg-convert` and run `just icons`; it is not needed at runtime.
 
 ## First run: calibrate
 
