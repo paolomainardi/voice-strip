@@ -4,6 +4,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-20
+
 ### Added
 
 - Faceplate app icon for the window and macOS Dock, with matching tray and menu bar glyphs for processing, standby, bypass and mute.
@@ -146,7 +148,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/paolomainardi/voice-strip/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/paolomainardi/voice-strip/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/paolomainardi/voice-strip/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/paolomainardi/voice-strip/compare/v0.4.0...v0.5.0
