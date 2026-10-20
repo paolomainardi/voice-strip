@@ -110,19 +110,21 @@ Two views show it: a vintage faceplate for everyday use, and an advanced view wi
 brew install paolomainardi/tap/voice-strip
 ```
 
-On macOS, install the virtual microphone driver once, then start Voice Strip from Terminal the first time, so macOS asks for the microphone permission:
+On macOS, install the virtual microphone driver once, and add the app to your Applications folder so that Spotlight, Launchpad and Finder can open it:
 
 ```bash
 voice-strip driver install    # asks for your password and restarts Core Audio, so audio stops for a moment
-voice-strip
+voice-strip app install       # copies Voice Strip.app to ~/Applications
 ```
+
+Then open **Voice Strip** from Spotlight, or run `voice-strip` in Terminal.
 
 On Linux, start `voice-strip`. It needs PipeWire, a Wayland or X11 desktop and a Vulkan driver.
 
 Then select **Voice Strip** (macOS) or **Voice Strip Microphone** (Linux) as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip.
 
-- **Update.** `brew upgrade voice-strip`. On macOS, when a release ships a new driver, the app's footer says so: run `voice-strip driver install` again.
-- **Uninstall.** On macOS, `voice-strip driver uninstall` first. Then `brew uninstall voice-strip`.
+- **Update.** `brew upgrade voice-strip`. On macOS, run `voice-strip app install` again to refresh the copy in Applications. When a release ships a new driver, the app's footer says so: run `voice-strip driver install` again.
+- **Uninstall.** On macOS, `voice-strip app uninstall` and `voice-strip driver uninstall` first. Then `brew uninstall voice-strip`.
 
 ## Install on Linux from a release
 
@@ -159,6 +161,7 @@ git clone https://github.com/paolomainardi/voice-strip.git
 cd voice-strip
 just macos-driver             # build target/VoiceStrip.driver (ad-hoc signed)
 just macos-driver-install     # install it and restart coreaudiod (asks for sudo; audio stops for a moment)
+just macos-app-install        # optional: copy Voice Strip.app to ~/Applications, so Spotlight opens it
 just start                    # build, then run in the background on the default microphone
 ```
 
@@ -166,6 +169,7 @@ just start                    # build, then run in the background on the default
 
 - **Microphone permission.** macOS asks once, for the app that starts Voice Strip: start it from Terminal. A process started over SSH is never granted the microphone and records silence.
 - **Manage it.** `just status`, `just logs` and `just stop`; `just start --input <UID>` starts on a given microphone (see `just devices`).
+- **The app.** `just macos-app` builds `target/Voice Strip.app`, and `just start` runs from it, so the Dock and Cmd+Tab show Voice Strip with its icon. `voice-strip app status` shows the copy in `~/Applications`, `voice-strip app install` refreshes it (also after `just upgrade`), and `voice-strip app uninstall` removes it.
 - **The driver.** `voice-strip driver status` shows the installed and the shipped driver, `voice-strip driver install` installs or replaces it, and `voice-strip driver uninstall` removes it (in a clone the binary is `target/release/voice-strip`). When a release ships a new driver, the app's footer says so.
 - **Signed builds.** `VOICE_STRIP_SIGN_IDENTITY` signs the driver with your identity instead (for example a Developer ID), and `VOICE_STRIP_TEAM` makes `voice-strip driver install` accept only that team's signature. See `scripts/macos-driver.sh` for signing over SSH.
 

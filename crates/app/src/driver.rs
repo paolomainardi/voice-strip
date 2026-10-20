@@ -70,6 +70,9 @@ mod mac {
             dir.join("../libexec").join(NAME),
             dir.join("..").join(NAME),
             dir.join(NAME),
+            // Inside `Voice Strip.app/Contents/MacOS`, next to the bundle.
+            dir.join("../../../libexec").join(NAME),
+            dir.join("../../..").join(NAME),
         ]
         .into_iter()
         .find(|p| p.join("Contents/Info.plist").is_file())
