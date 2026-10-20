@@ -176,6 +176,8 @@ tar -xzf voice-strip-v0.7.1-linux-x86_64.tar.gz
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app. Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`.
 
+The archive also contains `share/` with the launcher, icons and licences for packagers.
+
 **Desktop entry.** Run `voice-strip app install`, or `./voice-strip app install` from the extracted release directory, to install the launcher and icons. Everything is embedded in the binary. `voice-strip app status` shows the launcher's target and reports stale entries; `voice-strip app uninstall` removes the launcher and icons.
 
 ## Install on macOS from source

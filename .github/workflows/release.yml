@@ -38,7 +38,37 @@ jobs:
           cp target/release/voice-strip "dist/$name/"
           strip "dist/$name/voice-strip"
           cp README.md CHANGELOG.md THIRD-PARTY.md LICENSE-MIT LICENSE-APACHE "dist/$name/"
+          expected=(voice-strip README.md CHANGELOG.md THIRD-PARTY.md LICENSE-MIT LICENSE-APACHE)
+          desktop="share/applications/io.github.paolomainardi.voicestrip.desktop"
+          install -Dm644 "extras/linux/${desktop##*/}" "dist/$name/$desktop"
+          expected+=("$desktop")
+          for size in 16 32 48 64 128 256 512 1024; do
+            icon="share/icons/hicolor/${size}x${size}/apps/io.github.paolomainardi.voicestrip.png"
+            install -Dm644 "assets/icon/png/voice-strip-$size.png" "dist/$name/$icon"
+            expected+=("$icon")
+          done
+          icon="share/icons/hicolor/scalable/apps/io.github.paolomainardi.voicestrip.svg"
+          install -Dm644 assets/icon/voice-strip.svg "dist/$name/$icon"
+          expected+=("$icon")
+          for licence in LICENSE-MIT LICENSE-APACHE THIRD-PARTY.md; do
+            path="share/licenses/voice-strip/$licence"
+            install -Dm644 "$licence" "dist/$name/$path"
+            expected+=("$path")
+          done
+          for licence in OFL-IBM-Plex.txt OFL-Oswald.txt; do
+            path="share/licenses/voice-strip/$licence"
+            install -Dm644 "crates/app/assets/fonts/$licence" "dist/$name/$path"
+            expected+=("$path")
+          done
           tar -C dist -czf "dist/$name.tar.gz" "$name"
+          listing=$(tar -tzf "dist/$name.tar.gz")
+          printf '%s\n' "$listing"
+          for path in "${expected[@]}"; do
+            grep -Fxq "$name/$path" <<<"$listing" || {
+              echo "Missing archive file: $name/$path" >&2
+              exit 1
+            }
+          done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linux

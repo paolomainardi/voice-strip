@@ -4,6 +4,10 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Linux release archives include `share/` with the desktop launcher, icons and licences for packagers.
+
 ## [0.7.1] - 2026-10-20
 
 ### Added
