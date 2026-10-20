@@ -222,13 +222,13 @@ install:
     cargo build --release --locked -p app
     install_dir=${XDG_BIN_HOME:-"$HOME/.local/bin"}
     install -Dm755 "{{bin}}" "$install_dir/voice-strip"
-    scripts/desktop.sh install "$install_dir/voice-strip"
+    "$install_dir/voice-strip" app install
 
 # Remove this user's Linux app, launcher and icons without stopping the app
 [group('app')]
 [linux]
 uninstall:
-    scripts/desktop.sh uninstall
+    "${XDG_BIN_HOME:-$HOME/.local/bin}/voice-strip" app uninstall
     rm -f -- "${XDG_BIN_HOME:-$HOME/.local/bin}/voice-strip"
 
 # ---------------------------------------------------------------- macos
