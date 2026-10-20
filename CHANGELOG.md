@@ -4,6 +4,14 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Linux `voice-strip app install`, `status` and `uninstall` commands install the desktop launcher and icons from any binary, including Homebrew and release archives.
+
+### Removed
+
+- `scripts/desktop.sh` and the copied desktop assets in Linux release archives, replaced by assets embedded in the binary.
+
 ## [0.7.0] - 2026-10-20
 
 ### Added

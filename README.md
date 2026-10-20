@@ -21,7 +21,7 @@ Voice Strip makes a live microphone sound like it went through a well set up bro
 
 - [Highlights](#highlights)
 - [The chain](#the-chain)
-- [Install with Homebrew](#install-with-homebrew)
+- [Install with Homebrew](#install-with-homebrew): [switching to Homebrew](#switching-to-homebrew)
 - [Install on Linux from a release](#install-on-linux-from-a-release)
 - [Install on macOS from source](#install-on-macos-from-source)
 - [Build from source on Linux](#build-from-source-on-linux)
@@ -119,12 +119,48 @@ voice-strip app install       # copies Voice Strip.app to ~/Applications
 
 Then open **Voice Strip** from Spotlight, or run `voice-strip` in Terminal.
 
-On Linux, start `voice-strip`. It needs PipeWire, a Wayland or X11 desktop and a Vulkan driver.
+On Linux, run `voice-strip app install` to add the launcher and icons for your user. The launcher uses Homebrew's stable symlink across upgrades.
+
+Open Voice Strip from your desktop menu or run `voice-strip`. Linux needs PipeWire, a Wayland or X11 desktop and a Vulkan driver.
 
 Then select **Voice Strip** (macOS) or **Voice Strip Microphone** (Linux) as the microphone in your call or recording app, and pick your real microphone and headphones in Voice Strip.
 
 - **Update.** `brew upgrade voice-strip`. On macOS, run `voice-strip app install` again to refresh the copy in Applications. When a release ships a new driver, the app's footer says so: run `voice-strip driver install` again.
-- **Uninstall.** On macOS, `voice-strip app uninstall` and `voice-strip driver uninstall` first. Then `brew uninstall voice-strip`.
+- **Uninstall.** Run `voice-strip app uninstall` on either system, and `voice-strip driver uninstall` on macOS. Then `brew uninstall voice-strip`.
+
+### Switching to Homebrew
+
+Follow the steps for your current install; calibrations and settings stay where they are.
+
+- **macOS, from a clone.** Run from the clone directory:
+
+   ```bash
+   just stop
+   # If you used just macos-app-install:
+   "target/macos.noindex/Voice Strip.app/Contents/MacOS/voice-strip" app uninstall
+   brew install paolomainardi/tap/voice-strip
+   # Replace the installed driver only if its code differs:
+   voice-strip driver install --if-needed
+   voice-strip app install
+   ```
+
+   Keep the clone for development, or delete it.
+
+- **Linux, installed from a clone.** Uninstall from the clone directory first to avoid competing binaries on PATH:
+
+   ```bash
+   just uninstall
+   brew install paolomainardi/tap/voice-strip
+   voice-strip app install
+   ```
+
+- **Linux, from a release archive.** Delete the binary you copied (replace `/path/to/voice-strip`). `voice-strip app install` then points an existing launcher at the Homebrew binary:
+
+   ```bash
+   rm -- "/path/to/voice-strip"
+   brew install paolomainardi/tap/voice-strip
+   voice-strip app install
+   ```
 
 ## Install on Linux from a release
 
@@ -140,7 +176,7 @@ tar -xzf voice-strip-v0.7.0-linux-x86_64.tar.gz
 
 Select **Voice Strip Microphone** as the microphone in your call or recording app. Copy `voice-strip` anywhere on your `PATH` to use `voice-strip ctl` and `voice-strip --background`.
 
-**Desktop entry.** From the extracted release directory, run `bash scripts/desktop.sh install "$PWD/voice-strip"` to install the launcher and icons for your user. The launcher uses the absolute binary path, so it works without changing your session's `PATH`. Omit the path argument to use `voice-strip` from `PATH`. The archive includes `assets/icon/`, `extras/linux/` and the install script. `bash scripts/desktop.sh uninstall` removes the launcher and icons.
+**Desktop entry.** Run `voice-strip app install`, or `./voice-strip app install` from the extracted release directory, to install the launcher and icons. Everything is embedded in the binary. `voice-strip app status` shows the launcher's target and reports stale entries; `voice-strip app uninstall` removes the launcher and icons.
 
 ## Install on macOS from source
 
@@ -201,7 +237,9 @@ Select **Voice Strip Microphone** as the microphone in your call or recording ap
 
 Noise removal needs a one-time download of the DeepFilterNet3 model (34.7 MB) on every system: the app asks before downloading it (see [Noise removal](#noise-removal)).
 
-**Install location.** `just install` installs the binary in `XDG_BIN_HOME` (default `~/.local/bin`) and the launcher and icons in `XDG_DATA_HOME` (default `~/.local/share`). The launcher works even when the binary directory is not on your session's `PATH`. `just uninstall` removes the app, launcher and icons without stopping a running instance. To regenerate the committed icon PNGs, install librsvg's `rsvg-convert` and run `just icons`; it is not needed at runtime.
+**Install location.** `just install` installs the binary in `XDG_BIN_HOME` (default `~/.local/bin`), then runs its `app install` command. The launcher and icons go into `XDG_DATA_HOME` (default `~/.local/share`), and the binary directory need not be on your session's `PATH`. Run `voice-strip app install` separately from any install method to add or refresh the desktop entry.
+
+`just uninstall` removes the app, launcher and icons without stopping a running instance. To regenerate the committed icon PNGs, install librsvg's `rsvg-convert` and run `just icons`; it is not needed at runtime.
 
 ## First run: calibrate
 

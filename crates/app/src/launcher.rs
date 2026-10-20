@@ -1,11 +1,12 @@
-//! `voice-strip app status | install | uninstall`: the macOS app in the
-//! user's Applications folder, so Spotlight, Launchpad and Finder can open it.
+//! `voice-strip app status | install | uninstall`: per-user desktop integration.
+//! On macOS, the app lives in the user's Applications folder, so Spotlight,
+//! Launchpad and Finder can open it.
 //!
 //! The app is the `Voice Strip.app` bundle that holds this binary: Homebrew's
 //! `Voice Strip.app`, or `target/macos.noindex/Voice Strip.app` in a clone
 //! (`just macos-app`). Installing copies it to `~/Applications`. The copy is
 //! not updated by `brew upgrade`, so the command is run again after one.
-//! Linux has no bundle: its launcher comes from `scripts/desktop.sh`.
+//! Linux installs its desktop launcher and icons from embedded assets.
 
 use std::path::{Path, PathBuf};
 
@@ -23,13 +24,16 @@ fn enclosing_bundle(exe: &Path) -> Option<PathBuf> {
         .then(|| bundle.to_path_buf())
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+pub use linux::cli;
+
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub fn cli(args: &[String]) -> i32 {
     match args.first().map(String::as_str) {
         Some("status" | "install" | "uninstall") => {
-            println!(
-                "Only macOS has an app bundle. On Linux, scripts/desktop.sh installs the launcher."
-            );
+            println!("App installation is supported on Linux and macOS.");
             0
         }
         _ => {
