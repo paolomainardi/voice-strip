@@ -4,6 +4,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-23
+
 ### Added
 
 - `voice-strip --version`, `-V` and `version` print the installed version; `--help` and `-h` print usage and exit successfully.
@@ -183,7 +185,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.3...HEAD
+[0.7.3]: https://github.com/paolomainardi/voice-strip/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/paolomainardi/voice-strip/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/paolomainardi/voice-strip/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/paolomainardi/voice-strip/compare/v0.6.0...v0.7.0
