@@ -43,9 +43,10 @@ const USAGE: &str =
 [--headphones NODE] [--preset broadcast|podcast|call|stream|narration] \
 [--noise off|light|medium|strong] [--list-devices]
        voice-strip --screenshot standard|advanced <out.png> [--scale N] [--monitor] [--model-prompt]
+       voice-strip --version
        voice-strip ctl <command>   (see voice-strip ctl --help)
        voice-strip driver status | install [--if-needed] | uninstall   (macOS virtual microphone)
-       voice-strip app status | install | uninstall   (macOS app in ~/Applications, for Spotlight)";
+       voice-strip app status | install | uninstall   (app in ~/Applications on macOS, launcher and icon on Linux)";
 
 #[derive(Default)]
 struct Args {
@@ -63,6 +64,10 @@ struct Args {
     model_prompt: bool,
     /// Start without the window: processing, tray and remote control only.
     background: bool,
+}
+
+fn version_text() -> &'static str {
+    concat!("voice-strip ", env!("CARGO_PKG_VERSION"))
 }
 
 fn usage() -> ! {
@@ -862,6 +867,14 @@ fn platform_backend(sim: bool) -> Box<dyn AudioBackend> {
 fn main() -> eframe::Result<()> {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     match argv.first().map(String::as_str) {
+        Some("--version" | "-V" | "version") => {
+            println!("{}", version_text());
+            return Ok(());
+        }
+        Some("--help" | "-h") => {
+            println!("{USAGE}");
+            return Ok(());
+        }
         Some("ctl") => std::process::exit(app_core::remote::client::cli(&argv[1..])),
         Some("driver") => std::process::exit(driver::cli(&argv[1..])),
         Some("app") => std::process::exit(launcher::cli(&argv[1..])),
@@ -1249,5 +1262,18 @@ fn start_tray(st: &app_core::UiState) -> Option<Tray> {
             eprintln!("voice-strip: no tray icon ({e})");
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn version_identifies_the_app_and_package_version() {
+        assert_eq!(
+            version_text(),
+            format!("voice-strip {}", env!("CARGO_PKG_VERSION"))
+        );
     }
 }

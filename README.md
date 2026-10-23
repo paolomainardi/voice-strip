@@ -110,6 +110,8 @@ Two views show it: a vintage faceplate for everyday use, and an advanced view wi
 brew install paolomainardi/tap/voice-strip
 ```
 
+Run `voice-strip --version` to verify the installed version.
+
 On macOS, install the virtual microphone driver once, and add the app to your Applications folder so that Spotlight, Launchpad and Finder can open it:
 
 ```bash
