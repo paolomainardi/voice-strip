@@ -4,6 +4,10 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- `voice-strip --version`, `-V` and `version` print the installed version; `--help` and `-h` print usage and exit successfully.
+
 ## [0.7.2] - 2026-10-20
 
 ### Added
