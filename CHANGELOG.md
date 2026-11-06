@@ -4,6 +4,12 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-11-06
+
+### Fixed
+
+- Faceplate labels no longer render as garbled glyphs after the window is closed and opened again.
+
 ## [0.7.3] - 2026-10-23
 
 ### Added
@@ -185,7 +191,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.3...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.4...HEAD
+[0.7.4]: https://github.com/paolomainardi/voice-strip/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/paolomainardi/voice-strip/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/paolomainardi/voice-strip/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/paolomainardi/voice-strip/compare/v0.7.0...v0.7.1
