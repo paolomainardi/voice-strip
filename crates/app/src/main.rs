@@ -769,7 +769,16 @@ impl eframe::App for VoiceStrip {
                 for (clip, mesh) in &layer.meshes {
                     p.shapes.push((*clip, egui::Shape::Mesh(mesh.clone())));
                 }
-                p.shapes.extend(layer.text.iter().cloned());
+                // Laid out again through the galley cache: egui rebuilds the
+                // font atlas when it fills up, and a kept galley would still
+                // point at the old glyph positions.
+                for (clip, shape) in &layer.text {
+                    if let egui::Shape::Text(text) = shape {
+                        let mut text = text.clone();
+                        text.galley = ctx.fonts_mut(|f| f.layout_job((*text.galley.job).clone()));
+                        p.shapes.push((*clip, egui::Shape::Text(text)));
+                    }
+                }
             }
             view.paint_dynamic(&mut p, &state);
             if ModelDialog::is_open(&state) {
@@ -1200,9 +1209,9 @@ struct StaticKey {
 
 /// The static layer's paths as triangles, so drawing them costs a copy,
 /// not a tessellation. Text stays text: its triangles point into the font
-/// atlas, which egui repacks as glyphs come and go, and egui caches laid
-/// out text anyway. Text is drawn after the paths, as static labels sit on
-/// the faceplate.
+/// atlas, which egui rebuilds when it fills up, so each frame lays it out
+/// again through egui's galley cache. Text is drawn after the paths, as
+/// static labels sit on the faceplate.
 struct StaticLayer {
     key: StaticKey,
     meshes: Vec<(egui::Rect, std::sync::Arc<egui::Mesh>)>,
