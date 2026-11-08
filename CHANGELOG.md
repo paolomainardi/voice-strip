@@ -4,9 +4,15 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-11-08
+
 ### Added
 
 - Remember the selected microphone across launches, follow the default while it is disconnected, and keep command-line input overrides temporary.
+
+### Changed
+
+- On Default microphone, the calibration of the microphone actually captured is loaded.
 
 ### Fixed
 
@@ -199,7 +205,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.4...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.5...HEAD
+[0.7.5]: https://github.com/paolomainardi/voice-strip/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/paolomainardi/voice-strip/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/paolomainardi/voice-strip/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/paolomainardi/voice-strip/compare/v0.7.1...v0.7.2
