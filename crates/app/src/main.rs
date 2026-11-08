@@ -177,6 +177,7 @@ struct VoiceStrip {
     inputs: Vec<DeviceInfo>,
     outputs: Vec<DeviceInfo>,
     input_index: Option<usize>,
+    active_input: Option<String>,
     output_index: Option<usize>,
     menu: Option<(Menu, egui::Pos2)>,
     last: Instant,
@@ -612,6 +613,19 @@ impl VoiceStrip {
                 let ms = |n: usize| n as f32 * 1000.0 / dsp::SAMPLE_RATE as f32;
                 self.controller.set_io_latency_ms(ms(main));
                 self.controller.set_io_monitor_latency_ms(ms(monitor));
+                if let Some(input) = b.input_selection() {
+                    let label = if input.fallback {
+                        format!("{} (default is Voice Strip)", input.device.label)
+                    } else {
+                        input.device.label
+                    };
+                    if self.active_input.as_deref() != Some(&input.device.id) {
+                        self.controller.select_input(Some(&input.device.id), label);
+                        self.active_input = Some(input.device.id);
+                    } else {
+                        self.controller.state_mut().input_device = label;
+                    }
+                }
             }
             self.controller.tick();
             self.feed_scopes();
@@ -1037,6 +1051,7 @@ fn main() -> eframe::Result<()> {
         inputs,
         outputs,
         input_index,
+        active_input: None,
         output_index,
         menu: None,
         last: Instant::now(),

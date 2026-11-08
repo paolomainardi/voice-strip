@@ -45,6 +45,10 @@ pub trait RunningBackend: Send {
     /// Measured or reported device latency added by the backend itself
     /// (buffers, quantum), in samples, for the main and monitor paths.
     fn io_latency_samples(&self) -> (usize, usize);
+    /// Actual capture source, read outside the audio callback.
+    fn input_selection(&self) -> Option<crate::input::Selection> {
+        None
+    }
     /// Switches the physical microphone while running (`None`: system
     /// default). Backends that cannot switch ignore it.
     fn set_input(&self, _input: Option<&str>) {}

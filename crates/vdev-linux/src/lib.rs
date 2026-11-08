@@ -198,6 +198,7 @@ pub(crate) struct Status {
     /// `usize::MAX` until the virtual microphone node is known.
     pub readers: AtomicUsize,
     error: Mutex<Option<String>>,
+    input: Mutex<Option<engine::input::Selection>>,
 }
 
 impl Status {
@@ -274,6 +275,10 @@ impl PipeWireRunning {
 }
 
 impl RunningBackend for PipeWireRunning {
+    fn input_selection(&self) -> Option<engine::input::Selection> {
+        self.status.input.lock().ok().and_then(|s| s.clone())
+    }
+
     fn virtual_device_name(&self) -> &str {
         VIRTUAL_MIC_NAME
     }

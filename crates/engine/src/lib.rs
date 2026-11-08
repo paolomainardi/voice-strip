@@ -5,6 +5,7 @@
 
 pub mod backend;
 pub mod denormals;
+pub mod input;
 pub mod meters;
 pub mod processor;
 pub mod sim;
