@@ -275,6 +275,7 @@ unsafe extern "C" fn playback(
 #[derive(Default)]
 pub struct MacBackend {
     test: Option<TestSignal>,
+    saved_input: Option<String>,
 }
 
 impl MacBackend {
@@ -284,7 +285,10 @@ impl MacBackend {
 
     /// Replaces the captured audio with `signal` (tests only).
     pub fn with_test_signal(signal: TestSignal) -> Self {
-        Self { test: Some(signal) }
+        Self {
+            test: Some(signal),
+            ..Self::default()
+        }
     }
 
     fn list(&self, want: fn(AudioObjectId) -> bool) -> Result<Vec<DeviceInfo>, BackendError> {
@@ -309,7 +313,12 @@ impl MacBackend {
         input: Option<&str>,
         monitor_output: Option<&str>,
     ) -> Result<MacRunning, BackendError> {
-        let dev = resolve(input)?;
+        let (dev, selection) = resolve(input, None, self.saved_input.as_deref())?;
+        let requested_input = Arc::new(Mutex::new(InputRequest {
+            explicit: input.map(str::to_owned),
+            saved: self.saved_input.clone(),
+        }));
+        let selected_input = Arc::new(Mutex::new(Some(selection)));
         let cap = prepare(dev)?;
         let generation = RandomState::new().build_hasher().finish() | 1;
         let mapping = Arc::new(
@@ -366,6 +375,8 @@ impl MacBackend {
             let mut c = Control {
                 watch,
                 mic: mic.clone(),
+                requested_input: requested_input.clone(),
+                selected_input: selected_input.clone(),
                 standby: engine::standby::Policy::new(),
                 readers: None,
                 mapping: mapping.clone(),
@@ -389,6 +400,8 @@ impl MacBackend {
         };
         Ok(MacRunning {
             mic,
+            requested_input,
+            selected_input,
             mapping,
             status,
             stop,
@@ -400,19 +413,53 @@ impl MacBackend {
 }
 
 /// The device for `input` (`None`: the system default), never Voice Strip.
-fn resolve(input: Option<&str>) -> Result<AudioObjectId, BackendError> {
-    let dev = match input {
-        Some(uid) => hal::find(uid)
-            .map_err(|e| err("device list", e))?
-            .ok_or_else(|| BackendError(format!("no input device {uid}")))?,
-        None => hal::default_input().map_err(|e| err("default input", e))?,
-    };
-    if hal::uid(dev).is_ok_and(|u| u == model::DEVICE_UID) {
-        return Err(BackendError(
-            "the input is Voice Strip itself: choose a microphone".into(),
-        ));
+fn resolve(
+    input: Option<&str>,
+    previous: Option<&str>,
+    saved: Option<&str>,
+) -> Result<(AudioObjectId, engine::input::Selection), BackendError> {
+    let ids = hal::devices().map_err(|e| err("device list", e))?;
+    let sources: Vec<engine::input::Source> = ids
+        .iter()
+        .copied()
+        .filter(|&id| hal::has_input(id))
+        .filter_map(|id| {
+            let uid = hal::uid(id).ok()?;
+            (uid != model::DEVICE_UID).then(|| engine::input::Source {
+                device: DeviceInfo {
+                    label: hal::name(id).unwrap_or_else(|_| uid.clone()),
+                    id: uid,
+                },
+                priority: fallback_rank(id) * 1000
+                    - ids.iter().position(|&d| d == id).unwrap_or(0) as i32,
+            })
+        })
+        .collect();
+    let default = hal::default_input().ok().and_then(|d| hal::uid(d).ok());
+    let preferred = engine::input::preferred(input, saved, &sources);
+    let mut selection = if let Some(input) = preferred {
+        engine::input::choose(Some(input), &sources, None, None).filter(|s| s.device.id == input)
+    } else {
+        engine::input::choose(default.as_deref(), &sources, previous, saved)
     }
-    Ok(dev)
+    .ok_or_else(|| BackendError("no available input microphone".into()))?;
+    selection.fallback &= default.as_deref() == Some(model::DEVICE_UID);
+    let dev = ids
+        .into_iter()
+        .find(|&id| hal::uid(id).is_ok_and(|uid| uid == selection.device.id))
+        .ok_or_else(|| BackendError("input microphone disconnected".into()))?;
+    Ok((dev, selection))
+}
+
+/// How suitable a device is as a fallback microphone: wired ones first,
+/// then Bluetooth, then virtual, aggregate and Continuity devices, which may
+/// open another app's audio or a nearby iPhone's microphone.
+fn fallback_rank(id: AudioObjectId) -> i32 {
+    match &hal::transport_type(id).unwrap_or(0).to_be_bytes() {
+        b"bltn" | b"usb " | b"pci " | b"1394" | b"thun" | b"eavb" => 2,
+        b"blue" | b"blea" => 1,
+        _ => 0,
+    }
 }
 
 /// What capturing from one device needs, prepared before its IOProc runs.
@@ -500,6 +547,10 @@ fn check_format(f: &StreamBasicDescription) -> Result<(), BackendError> {
 }
 
 impl AudioBackend for MacBackend {
+    fn set_saved_input(&mut self, input: Option<&str>) {
+        self.saved_input = input.map(str::to_owned);
+    }
+
     fn list_inputs(&self) -> Result<Vec<DeviceInfo>, BackendError> {
         self.list(hal::has_input)
     }
@@ -532,9 +583,17 @@ struct Io {
     paused: bool,
 }
 
+#[derive(Clone)]
+struct InputRequest {
+    explicit: Option<String>,
+    saved: Option<String>,
+}
+
 /// A running capture. Dropping it stops IO and removes the segment.
 pub struct MacRunning {
     mic: Arc<Mic>,
+    requested_input: Arc<Mutex<InputRequest>>,
+    selected_input: Arc<Mutex<Option<engine::input::Selection>>>,
     mapping: Arc<shm::Mapping>,
     status: Arc<Status>,
     stop: Arc<AtomicBool>,
@@ -609,16 +668,18 @@ impl MacRunning {
             .lock()
             .map_or_else(|e| e.into_inner().info, |io| io.info)
     }
+}
 
+impl Mic {
     /// Moves capture to `dev`: stops the IOProc, resizes for the new device
     /// and starts it there. On failure capture goes back to the old device.
     fn switch(&self, dev: AudioObjectId) -> Result<(), BackendError> {
         let cap = prepare(dev)?;
-        let mut io = self.mic.io.lock().unwrap_or_else(|e| e.into_inner());
+        let mut io = self.io.lock().unwrap_or_else(|e| e.into_inner());
         if io.paused {
             // Resumed on the new device; nothing runs meanwhile.
             // SAFETY: the IOProc is stopped while paused, so `rt` is ours.
-            io.info = unsafe { &mut *self.mic.rt }.configure(cap);
+            io.info = unsafe { &mut *self.rt }.configure(cap);
             io.dev = dev;
             return Ok(());
         }
@@ -626,10 +687,10 @@ impl MacRunning {
         // longer runs, so `rt` is ours until it starts again.
         unsafe { hal::stop_io_proc(io.dev, io.proc_id) };
         // SAFETY: as above; nothing else touches `rt` under the lock.
-        let rt = unsafe { &mut *self.mic.rt };
+        let rt = unsafe { &mut *self.rt };
         let info = rt.configure(cap);
         // SAFETY: `rt` outlives the IOProc (freed in Drop after stopping it).
-        match unsafe { hal::start_io_proc(dev, capture, self.mic.rt as *mut c_void) } {
+        match unsafe { hal::start_io_proc(dev, capture, self.rt as *mut c_void) } {
             Ok(proc_id) => {
                 *io = Io {
                     dev,
@@ -645,7 +706,7 @@ impl MacRunning {
                     io.info = rt.configure(cap);
                 }
                 // SAFETY: as above.
-                match unsafe { hal::start_io_proc(old, capture, self.mic.rt as *mut c_void) } {
+                match unsafe { hal::start_io_proc(old, capture, self.rt as *mut c_void) } {
                     Ok(proc_id) => io.proc_id = proc_id,
                     // Nothing runs now: later stops must not touch the
                     // destroyed IOProc, and a resume starts a new one.
@@ -672,10 +733,21 @@ impl RunningBackend for MacRunning {
         h.changed = true;
     }
 
+    fn input_selection(&self) -> Option<engine::input::Selection> {
+        self.selected_input
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
     fn set_input(&self, input: Option<&str>) {
-        if let Err(e) = resolve(input).and_then(|dev| self.switch(dev)) {
-            eprintln!("voice-strip: cannot switch microphone: {e}");
-        }
+        *self
+            .requested_input
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = InputRequest {
+            explicit: input.map(str::to_owned),
+            saved: None,
+        };
     }
 }
 
@@ -711,6 +783,8 @@ struct Playing {
 /// stops the headphones' IOProc as the UI turns monitoring on and off or
 /// picks other headphones.
 struct Control {
+    requested_input: Arc<Mutex<InputRequest>>,
+    selected_input: Arc<Mutex<Option<engine::input::Selection>>>,
     watch: ProcessorWatch,
     mic: Arc<Mic>,
     standby: engine::standby::Policy,
@@ -750,6 +824,24 @@ impl Control {
                     .fetch_add(1, Relaxed);
             }
             if tick.is_multiple_of(20) {
+                let requested = self
+                    .requested_input
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clone();
+                let current = self.mic.io.lock().unwrap_or_else(|e| e.into_inner()).dev;
+                let previous = hal::uid(current).ok();
+                if let Ok((dev, selection)) = resolve(
+                    requested.explicit.as_deref(),
+                    previous.as_deref(),
+                    requested.saved.as_deref(),
+                ) && (dev == current || self.mic.switch(dev).is_ok())
+                {
+                    *self
+                        .selected_input
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner()) = Some(selection);
+                }
                 self.readers = hal::find(model::DEVICE_UID)
                     .ok()
                     .flatten()

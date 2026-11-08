@@ -4,6 +4,7 @@
 
 pub mod calibration;
 pub mod controller;
+pub mod input;
 pub mod presets;
 pub mod profiles;
 pub mod remote;

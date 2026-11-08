@@ -325,6 +325,7 @@ test-timing:
 [group('measure')]
 [linux]
 test-pipewire:
+    scripts/e2e/run.sh cargo test -p vdev-linux --test default_input -- --ignored --nocapture --test-threads=1
     scripts/e2e/run.sh cargo test -p vdev-linux --test loopback -- --ignored --nocapture --test-threads=1
     scripts/e2e/run.sh cargo test -p vdev-linux --test standby -- --ignored --nocapture
 

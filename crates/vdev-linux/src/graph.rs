@@ -18,6 +18,8 @@ pub struct NodeEntry {
     pub name: String,
     pub description: String,
     pub class: String,
+    pub priority: i32,
+    pub monitor: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -61,6 +63,14 @@ impl Graph {
                         name,
                         description,
                         class,
+                        priority: props
+                            .get("priority.session")
+                            .and_then(|s| s.parse().ok())
+                            .unwrap_or(0),
+                        monitor: props.get("stream.monitor") == Some("true")
+                            || props
+                                .get("node.name")
+                                .is_some_and(|s| s.ends_with(".monitor")),
                     },
                 );
                 true
@@ -102,6 +112,26 @@ impl Graph {
         self.nodes.remove(&id).is_some()
             | self.ports.remove(&id).is_some()
             | self.links.remove(&id).is_some()
+    }
+
+    pub fn sources(&self) -> Vec<engine::input::Source> {
+        self.nodes
+            .values()
+            .filter(|n| {
+                (n.class == "Audio/Source" || n.class.starts_with("Audio/Source/"))
+                    && !n.class.ends_with("/Internal")
+                    && !n.monitor
+                    && n.name != VIRTUAL_MIC_NAME
+                    && n.name != DSP_NODE_NAME
+            })
+            .map(|n| engine::input::Source {
+                device: DeviceInfo {
+                    id: n.name.clone(),
+                    label: n.description.clone(),
+                },
+                priority: n.priority,
+            })
+            .collect()
     }
 
     /// Links that read the virtual microphone: other applications;
@@ -224,6 +254,7 @@ pub fn list_devices(inputs: bool) -> Result<Vec<DeviceInfo>, BackendError> {
         .filter(|n| {
             (n.class == prefix || n.class.starts_with(&format!("{prefix}/")))
                 && !n.class.ends_with("/Internal")
+                && (!inputs || !n.monitor)
                 && n.name != VIRTUAL_MIC_NAME
                 && n.name != DSP_NODE_NAME
         })
@@ -268,4 +299,37 @@ pub fn roundtrip(
 
 pub fn err(e: impl std::fmt::Display) -> BackendError {
     BackendError(e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fallback_sources_exclude_monitors_and_our_nodes() {
+        let mut graph = Graph::default();
+        for (id, name, class, monitor) in [
+            (1, "microphone", "Audio/Source", false),
+            (2, VIRTUAL_MIC_NAME, "Audio/Source/Virtual", false),
+            (3, DSP_NODE_NAME, "Audio/Source", false),
+            (4, "speaker.monitor", "Audio/Source", true),
+            (5, "speaker", "Audio/Sink", false),
+            (6, "internal", "Audio/Source/Internal", false),
+        ] {
+            graph.nodes.insert(
+                id,
+                NodeEntry {
+                    name: name.into(),
+                    description: name.into(),
+                    class: class.into(),
+                    priority: 42,
+                    monitor,
+                },
+            );
+        }
+        let sources = graph.sources();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].device.id, "microphone");
+        assert_eq!(sources[0].priority, 42);
+    }
 }

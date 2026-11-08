@@ -151,6 +151,8 @@ struct State {
     watch: ProcessorWatch,
     capture_link: Option<pw::link::Link>,
     capture_target: Option<(u32, u32)>,
+    previous_source: Option<String>,
+    graph_ready: bool,
     /// The virtual microphone node (null adapter) and its feeding link.
     virtual_node: Option<pw::node::Node>,
     output_link: Option<pw::link::Link>,
@@ -196,7 +198,8 @@ impl State {
     /// Establishes the capture link when source, ports and our node exist.
     /// Switches the capture source; the next sync links the new one.
     fn set_input(&mut self, input: Option<String>) {
-        if self.cfg.input == input {
+        let had_saved = self.cfg.saved_input.take().is_some();
+        if self.cfg.input == input && !had_saved {
             return;
         }
         debug!("capture: input changed to {input:?}, relinking");
@@ -204,7 +207,6 @@ impl State {
         self.capture_link = None;
         self.capture_target = None;
         self.status.linked.store(false, Ordering::Release);
-        self.sync_capture();
     }
 
     /// Switches the headphones; the next sync links the monitor port to it.
@@ -242,29 +244,53 @@ impl State {
     }
 
     fn sync_capture(&mut self) {
+        if !self.graph_ready {
+            return;
+        }
+        let sources = self.graph.sources();
+        let preferred = engine::input::preferred(
+            self.cfg.input.as_deref(),
+            self.cfg.saved_input.as_deref(),
+            &sources,
+        );
+        let mut selection = if let Some(input) = preferred {
+            engine::input::choose(Some(input), &sources, None, None)
+                .filter(|s| s.device.id == input)
+        } else {
+            engine::input::choose(
+                self.graph.default_source.as_deref(),
+                &sources,
+                self.previous_source.as_deref(),
+                self.cfg.saved_input.as_deref(),
+            )
+        };
+        if let Some(s) = &mut selection {
+            s.fallback &= self.graph.default_source.as_deref() == Some(VIRTUAL_MIC_NAME);
+        }
+        *self.status.input.lock().unwrap_or_else(|e| e.into_inner()) = selection.clone();
+        let Some(selection) = selection else {
+            return;
+        };
+        let name = selection.device.id;
+        let current = self
+            .capture_target
+            .and_then(|(node, _)| self.graph.nodes.get(&node))
+            .map(|n| &n.name);
+        if self.capture_link.is_some() && current != Some(&name) {
+            self.capture_link = None;
+            self.capture_target = None;
+            self.status.linked.store(false, Ordering::Release);
+        }
+        self.previous_source = Some(name.clone());
         if self.capture_link.is_some() || !self.capture_on {
             return;
         }
         let Some(me) = self.node_id() else {
-            debug!("capture: node id not yet known");
             return;
         };
         let Some(in_port) = self.graph.port_named(me, "input", false) else {
-            debug!("capture: input port not yet registered");
             return;
         };
-        let Some(name) = self
-            .cfg
-            .input
-            .clone()
-            .or_else(|| self.graph.default_source.clone())
-        else {
-            debug!("capture: no source selected and no default source");
-            return;
-        };
-        if name == VIRTUAL_MIC_NAME {
-            return;
-        }
         let Some(target) = self.graph.node_by_name(&name) else {
             debug!("capture: source node {name} not found");
             return;
@@ -350,18 +376,6 @@ impl State {
     /// default so the next sync picks the new one.
     fn on_default_changed(&mut self, key: &str) {
         match key {
-            "default.audio.source" if self.cfg.input.is_none() => {
-                let current = self
-                    .capture_target
-                    .and_then(|(node, _)| self.graph.nodes.get(&node))
-                    .map(|n| n.name.clone());
-                if current.is_some() && current != self.graph.default_source {
-                    debug!("capture: default source changed, relinking");
-                    self.capture_link = None;
-                    self.capture_target = None;
-                    self.status.linked.store(false, Ordering::Release);
-                }
-            }
             "default.audio.sink" if self.cfg.monitor_output.is_none() => {
                 let current = self
                     .monitor_sink
@@ -397,7 +411,6 @@ impl State {
                 self.output_target = None;
                 self.status.output_linked.store(false, Ordering::Release);
             }
-            self.sync_capture();
             self.sync_output();
             self.sync_monitor();
         }
@@ -430,6 +443,7 @@ impl State {
             self.set_capture(!standby);
             self.watch.set_standby(standby);
         }
+        // Rebuild capture after registry notifications, not midway through an unplug batch.
         self.sync_capture();
         self.sync_output();
         let wanted = self.watch.monitor_wanted();
@@ -614,6 +628,8 @@ pub(crate) fn run(
         watch,
         capture_link: None,
         capture_target: None,
+        previous_source: None,
+        graph_ready: false,
         virtual_node: Some(virtual_node),
         output_link: None,
         output_target: None,
@@ -625,10 +641,19 @@ pub(crate) fn run(
         standby: engine::standby::Policy::new(),
     }));
 
+    let initial_graph = core.sync(0).map_err(|e| BackendError(e.to_string()))?;
     let _core_listener = {
+        let state = state.clone();
         let status = status.clone();
         let mainloop = mainloop.clone();
         core.add_listener_local()
+            .done(move |id, seq| {
+                if id == pw::core::PW_ID_CORE && seq == initial_graph {
+                    let mut s = state.borrow_mut();
+                    s.graph_ready = true;
+                    s.sync_capture();
+                }
+            })
             .error(move |_id, _seq, res, msg| {
                 status.set_error(format!("core error {res}: {msg}"));
                 mainloop.quit();
@@ -661,7 +686,6 @@ pub(crate) fn run(
                                         {
                                             debug!("metadata {key} = {value:?}");
                                             s.on_default_changed(key);
-                                            s.sync_capture();
                                             s.sync_output();
                                             s.sync_monitor();
                                         }
@@ -677,7 +701,6 @@ pub(crate) fn run(
                 }
                 let mut s = state_g.borrow_mut();
                 if s.graph.add_global(g) {
-                    s.sync_capture();
                     s.sync_output();
                     s.sync_monitor();
                 }

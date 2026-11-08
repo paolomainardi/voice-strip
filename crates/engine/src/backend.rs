@@ -26,6 +26,9 @@ impl std::error::Error for BackendError {}
 /// to the virtual microphone and, when enabled, the monitor output to the
 /// selected headphones.
 pub trait AudioBackend {
+    /// Cached UI preference, used when connected; no settings I/O in the backend.
+    fn set_saved_input(&mut self, _input: Option<&str>) {}
+
     fn list_inputs(&self) -> Result<Vec<DeviceInfo>, BackendError>;
     fn list_outputs(&self) -> Result<Vec<DeviceInfo>, BackendError>;
 
@@ -45,6 +48,10 @@ pub trait RunningBackend: Send {
     /// Measured or reported device latency added by the backend itself
     /// (buffers, quantum), in samples, for the main and monitor paths.
     fn io_latency_samples(&self) -> (usize, usize);
+    /// Actual capture source, read outside the audio callback.
+    fn input_selection(&self) -> Option<crate::input::Selection> {
+        None
+    }
     /// Switches the physical microphone while running (`None`: system
     /// default). Backends that cannot switch ignore it.
     fn set_input(&self, _input: Option<&str>) {}

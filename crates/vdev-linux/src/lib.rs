@@ -74,12 +74,14 @@ pub const MONITOR_QUANTUM: u32 = 64;
 #[derive(Clone, Debug)]
 pub struct PipeWireBackend {
     quantum: u32,
+    saved_input: Option<String>,
 }
 
 impl Default for PipeWireBackend {
     fn default() -> Self {
         Self {
             quantum: dsp::BLOCK_MAIN as u32,
+            saved_input: None,
         }
     }
 }
@@ -108,6 +110,7 @@ impl PipeWireBackend {
         let cfg = Config {
             quantum: self.quantum,
             input: input.map(str::to_owned),
+            saved_input: self.saved_input.clone(),
             monitor_output: monitor_output.map(str::to_owned),
         };
         let status_t = status.clone();
@@ -141,6 +144,10 @@ impl PipeWireBackend {
 }
 
 impl AudioBackend for PipeWireBackend {
+    fn set_saved_input(&mut self, input: Option<&str>) {
+        self.saved_input = input.map(str::to_owned);
+    }
+
     fn list_inputs(&self) -> Result<Vec<DeviceInfo>, BackendError> {
         list_devices(true)
     }
@@ -166,6 +173,7 @@ impl AudioBackend for PipeWireBackend {
 pub(crate) struct Config {
     pub quantum: u32,
     pub input: Option<String>,
+    pub saved_input: Option<String>,
     pub monitor_output: Option<String>,
 }
 
@@ -198,6 +206,7 @@ pub(crate) struct Status {
     /// `usize::MAX` until the virtual microphone node is known.
     pub readers: AtomicUsize,
     error: Mutex<Option<String>>,
+    input: Mutex<Option<engine::input::Selection>>,
 }
 
 impl Status {
@@ -274,6 +283,10 @@ impl PipeWireRunning {
 }
 
 impl RunningBackend for PipeWireRunning {
+    fn input_selection(&self) -> Option<engine::input::Selection> {
+        self.status.input.lock().ok().and_then(|s| s.clone())
+    }
+
     fn virtual_device_name(&self) -> &str {
         VIRTUAL_MIC_NAME
     }

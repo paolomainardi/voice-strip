@@ -177,6 +177,8 @@ struct VoiceStrip {
     inputs: Vec<DeviceInfo>,
     outputs: Vec<DeviceInfo>,
     input_index: Option<usize>,
+    input_choice: Option<String>,
+    active_input: Option<String>,
     output_index: Option<usize>,
     menu: Option<(Menu, egui::Pos2)>,
     last: Instant,
@@ -238,7 +240,7 @@ impl VoiceStrip {
         let id_of = |list: &[DeviceInfo], i: Option<usize>| {
             i.and_then(|i| list.get(i)).map(|d| d.id.clone())
         };
-        let input = id_of(&self.inputs, self.input_index);
+        let input = self.input_choice.clone();
         let output = id_of(&self.outputs, self.output_index);
         if let Ok(list) = self.devices.list_inputs() {
             self.inputs = list;
@@ -477,6 +479,14 @@ impl VoiceStrip {
                 Menu::Input => {
                     self.input_index = choice;
                     let id = dev.as_ref().map(|d| d.id.clone());
+                    self.input_choice = id.clone();
+                    self.active_input = None;
+                    if let Some(dir) = app_core::updates::settings_dir()
+                        && let Err(e) = app_core::input::save(&dir, id.as_deref())
+                    {
+                        self.controller.state_mut().notice =
+                            Some(format!("Input choice not saved: {e}"));
+                    }
                     let label = dev.map_or_else(|| default.into(), |d| d.label);
                     self.controller.select_input(id.as_deref(), label);
                 }
@@ -612,6 +622,19 @@ impl VoiceStrip {
                 let ms = |n: usize| n as f32 * 1000.0 / dsp::SAMPLE_RATE as f32;
                 self.controller.set_io_latency_ms(ms(main));
                 self.controller.set_io_monitor_latency_ms(ms(monitor));
+                if let Some(input) = b.input_selection() {
+                    let label = if input.fallback {
+                        format!("{} (default is Voice Strip)", input.device.label)
+                    } else {
+                        input.device.label
+                    };
+                    if self.active_input.as_deref() != Some(&input.device.id) {
+                        self.controller.select_input(Some(&input.device.id), label);
+                        self.active_input = Some(input.device.id);
+                    } else {
+                        self.controller.state_mut().input_device = label;
+                    }
+                }
             }
             self.controller.tick();
             self.feed_scopes();
@@ -907,6 +930,14 @@ fn main() -> eframe::Result<()> {
         ViewKind::Standard
     };
     let mut backend = platform_backend(args.sim || screenshot);
+    let saved_input = if screenshot {
+        None
+    } else {
+        app_core::updates::settings_dir().and_then(|dir| app_core::input::load(&dir))
+    };
+    backend.set_saved_input(saved_input.as_deref());
+    let input_choice = args.input.clone().or(saved_input);
+
     let inputs = backend.list_inputs().unwrap_or_default();
     let outputs = backend.list_outputs().unwrap_or_default();
     if args.list_devices {
@@ -992,8 +1023,7 @@ fn main() -> eframe::Result<()> {
         controller.set_intensity(intensity);
         running = Some(r);
     }
-    let input_index = args
-        .input
+    let input_index = input_choice
         .as_deref()
         .and_then(|id| inputs.iter().position(|d| d.id == id));
     let output_index = args
@@ -1037,6 +1067,8 @@ fn main() -> eframe::Result<()> {
         inputs,
         outputs,
         input_index,
+        input_choice,
+        active_input: None,
         output_index,
         menu: None,
         last: Instant::now(),
