@@ -241,6 +241,12 @@ pub fn uid(id: AudioObjectId) -> Result<String, OsStatus> {
     string(id, PROP_DEVICE_UID)
 }
 
+/// How the device is connected (`kAudioDevicePropertyTransportType`), a
+/// four-character code such as `bltn`, `usb ` or `virt`.
+pub fn transport_type(id: AudioObjectId) -> Result<u32, OsStatus> {
+    read(id, global(fourcc(b"tran")), 0u32)
+}
+
 /// The system default input device.
 pub fn default_input() -> Result<AudioObjectId, OsStatus> {
     read(SYSTEM_OBJECT, global(PROP_DEFAULT_INPUT_DEVICE), 0u32)

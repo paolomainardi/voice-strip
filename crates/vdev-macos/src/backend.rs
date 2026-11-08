@@ -430,7 +430,8 @@ fn resolve(
                     label: hal::name(id).unwrap_or_else(|_| uid.clone()),
                     id: uid,
                 },
-                priority: -(ids.iter().position(|&d| d == id).unwrap_or(0) as i32),
+                priority: fallback_rank(id) * 1000
+                    - ids.iter().position(|&d| d == id).unwrap_or(0) as i32,
             })
         })
         .collect();
@@ -448,6 +449,17 @@ fn resolve(
         .find(|&id| hal::uid(id).is_ok_and(|uid| uid == selection.device.id))
         .ok_or_else(|| BackendError("input microphone disconnected".into()))?;
     Ok((dev, selection))
+}
+
+/// How suitable a device is as a fallback microphone: wired ones first,
+/// then Bluetooth, then virtual, aggregate and Continuity devices, which may
+/// open another app's audio or a nearby iPhone's microphone.
+fn fallback_rank(id: AudioObjectId) -> i32 {
+    match &hal::transport_type(id).unwrap_or(0).to_be_bytes() {
+        b"bltn" | b"usb " | b"pci " | b"1394" | b"thun" | b"eavb" => 2,
+        b"blue" | b"blea" => 1,
+        _ => 0,
+    }
 }
 
 /// What capturing from one device needs, prepared before its IOProc runs.
