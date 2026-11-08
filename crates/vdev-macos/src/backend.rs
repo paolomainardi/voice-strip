@@ -275,6 +275,7 @@ unsafe extern "C" fn playback(
 #[derive(Default)]
 pub struct MacBackend {
     test: Option<TestSignal>,
+    saved_input: Option<String>,
 }
 
 impl MacBackend {
@@ -284,7 +285,10 @@ impl MacBackend {
 
     /// Replaces the captured audio with `signal` (tests only).
     pub fn with_test_signal(signal: TestSignal) -> Self {
-        Self { test: Some(signal) }
+        Self {
+            test: Some(signal),
+            ..Self::default()
+        }
     }
 
     fn list(&self, want: fn(AudioObjectId) -> bool) -> Result<Vec<DeviceInfo>, BackendError> {
@@ -309,8 +313,11 @@ impl MacBackend {
         input: Option<&str>,
         monitor_output: Option<&str>,
     ) -> Result<MacRunning, BackendError> {
-        let (dev, selection) = resolve(input, None, None)?;
-        let requested_input = Arc::new(Mutex::new(input.map(str::to_owned)));
+        let (dev, selection) = resolve(input, None, self.saved_input.as_deref())?;
+        let requested_input = Arc::new(Mutex::new(InputRequest {
+            explicit: input.map(str::to_owned),
+            saved: self.saved_input.clone(),
+        }));
         let selected_input = Arc::new(Mutex::new(Some(selection)));
         let cap = prepare(dev)?;
         let generation = RandomState::new().build_hasher().finish() | 1;
@@ -428,7 +435,8 @@ fn resolve(
         })
         .collect();
     let default = hal::default_input().ok().and_then(|d| hal::uid(d).ok());
-    let mut selection = if let Some(input) = input {
+    let preferred = engine::input::preferred(input, saved, &sources);
+    let mut selection = if let Some(input) = preferred {
         engine::input::choose(Some(input), &sources, None, None).filter(|s| s.device.id == input)
     } else {
         engine::input::choose(default.as_deref(), &sources, previous, saved)
@@ -527,6 +535,10 @@ fn check_format(f: &StreamBasicDescription) -> Result<(), BackendError> {
 }
 
 impl AudioBackend for MacBackend {
+    fn set_saved_input(&mut self, input: Option<&str>) {
+        self.saved_input = input.map(str::to_owned);
+    }
+
     fn list_inputs(&self) -> Result<Vec<DeviceInfo>, BackendError> {
         self.list(hal::has_input)
     }
@@ -559,10 +571,16 @@ struct Io {
     paused: bool,
 }
 
+#[derive(Clone)]
+struct InputRequest {
+    explicit: Option<String>,
+    saved: Option<String>,
+}
+
 /// A running capture. Dropping it stops IO and removes the segment.
 pub struct MacRunning {
     mic: Arc<Mic>,
-    requested_input: Arc<Mutex<Option<String>>>,
+    requested_input: Arc<Mutex<InputRequest>>,
     selected_input: Arc<Mutex<Option<engine::input::Selection>>>,
     mapping: Arc<shm::Mapping>,
     status: Arc<Status>,
@@ -714,7 +732,10 @@ impl RunningBackend for MacRunning {
         *self
             .requested_input
             .lock()
-            .unwrap_or_else(|e| e.into_inner()) = input.map(str::to_owned);
+            .unwrap_or_else(|e| e.into_inner()) = InputRequest {
+            explicit: input.map(str::to_owned),
+            saved: None,
+        };
     }
 }
 
@@ -750,7 +771,7 @@ struct Playing {
 /// stops the headphones' IOProc as the UI turns monitoring on and off or
 /// picks other headphones.
 struct Control {
-    requested_input: Arc<Mutex<Option<String>>>,
+    requested_input: Arc<Mutex<InputRequest>>,
     selected_input: Arc<Mutex<Option<engine::input::Selection>>>,
     watch: ProcessorWatch,
     mic: Arc<Mic>,
@@ -798,9 +819,11 @@ impl Control {
                     .clone();
                 let current = self.mic.io.lock().unwrap_or_else(|e| e.into_inner()).dev;
                 let previous = hal::uid(current).ok();
-                if let Ok((dev, selection)) =
-                    resolve(requested.as_deref(), previous.as_deref(), None)
-                    && (dev == current || self.mic.switch(dev).is_ok())
+                if let Ok((dev, selection)) = resolve(
+                    requested.explicit.as_deref(),
+                    previous.as_deref(),
+                    requested.saved.as_deref(),
+                ) && (dev == current || self.mic.switch(dev).is_ok())
                 {
                     *self
                         .selected_input

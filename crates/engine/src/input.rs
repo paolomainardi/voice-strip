@@ -14,6 +14,15 @@ pub struct Selection {
     pub fallback: bool,
 }
 
+/// CLI requests win even when absent; a missing saved device follows the default.
+pub fn preferred<'a>(
+    explicit: Option<&'a str>,
+    saved: Option<&'a str>,
+    sources: &[Source],
+) -> Option<&'a str> {
+    explicit.or_else(|| saved.filter(|id| sources.iter().any(|s| s.device.id == *id)))
+}
+
 /// `sources` contains only eligible microphones, excluding monitors and our devices.
 pub fn choose(
     default: Option<&str>,
@@ -54,6 +63,15 @@ mod tests {
                 priority,
             })
             .collect()
+    }
+
+    #[test]
+    fn cli_wins_and_saved_devices_return_without_losing_the_preference() {
+        let sources = sources();
+        assert_eq!(preferred(Some("cli"), Some("a"), &sources), Some("cli"));
+        assert_eq!(preferred(None, Some("a"), &[]), None);
+        assert_eq!(preferred(None, Some("a"), &sources), Some("a"));
+        assert_eq!(preferred(None, None, &sources), None);
     }
 
     #[test]

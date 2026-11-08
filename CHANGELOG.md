@@ -4,6 +4,10 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Remember the selected microphone across launches, follow the default while it is disconnected, and keep command-line input overrides temporary.
+
 ### Fixed
 
 - Keep capturing a real microphone when Voice Strip is the system default input, and show the microphone actually in use.

@@ -118,3 +118,56 @@ fn self_default_keeps_capture_and_falls_back_at_start() {
         "self-default capture remained linked; peak={peak:.6}; real-default return and startup fallback passed"
     );
 }
+
+#[test]
+#[ignore = "needs a private PipeWire server: scripts/e2e/run.sh"]
+fn saved_input_reconnects_and_cli_and_default_choices_win() {
+    use engine::AudioBackend;
+    let nodes = NullNodes::start(480);
+    default_source(TEST_SRC2);
+    let mut backend = PipeWireBackend::new();
+    backend.set_saved_input(Some(TEST_SRC));
+    let (_handle, processor) = engine::new_engine();
+    let running = backend.start_pipewire(processor, None, None).unwrap();
+    assert!(running.wait_linked(false, Duration::from_secs(5)));
+    wait_for("saved input", || {
+        running
+            .input_selection()
+            .is_some_and(|s| s.device.id == TEST_SRC)
+    });
+    drop(nodes);
+    wait_for("saved input disconnected", || {
+        running.input_selection().is_none()
+    });
+    let _nodes = NullNodes::start(480);
+    wait_for("saved input reconnected", || {
+        assert!(
+            running.error().is_none(),
+            "backend stopped: {:?}",
+            running.error()
+        );
+        running
+            .input_selection()
+            .is_some_and(|s| s.device.id == TEST_SRC)
+    });
+    assert!(running.wait_linked(false, Duration::from_secs(5)));
+    default_source(TEST_SRC2);
+    running.set_input(None);
+    wait_for("default clears saved preference", || {
+        running
+            .input_selection()
+            .is_some_and(|s| s.device.id == TEST_SRC2)
+    });
+    drop(running);
+    let (_handle, processor) = engine::new_engine();
+    let running = backend
+        .start_pipewire(processor, Some(TEST_SRC2), None)
+        .unwrap();
+    assert!(running.wait_linked(false, Duration::from_secs(5)));
+    wait_for("CLI overrides saved preference", || {
+        running
+            .input_selection()
+            .is_some_and(|s| s.device.id == TEST_SRC2)
+    });
+    println!("saved input reconnect, default reset, and CLI precedence passed");
+}

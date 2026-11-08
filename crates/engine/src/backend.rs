@@ -26,6 +26,9 @@ impl std::error::Error for BackendError {}
 /// to the virtual microphone and, when enabled, the monitor output to the
 /// selected headphones.
 pub trait AudioBackend {
+    /// Cached UI preference, used when connected; no settings I/O in the backend.
+    fn set_saved_input(&mut self, _input: Option<&str>) {}
+
     fn list_inputs(&self) -> Result<Vec<DeviceInfo>, BackendError>;
     fn list_outputs(&self) -> Result<Vec<DeviceInfo>, BackendError>;
 
