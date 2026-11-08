@@ -18,6 +18,8 @@ pub fn demo_state() -> UiState {
     chain.modules.eq_dynamic_threshold_db = [-20.0, -20.0, -20.0, 0.0];
     chain.modules.eq_static_db = [-3.0, -1.0, 2.0, 1.0];
     UiState {
+        app_version: String::new(),
+        update_checked: true,
         on: true,
         muted: false,
         ab_original: false,

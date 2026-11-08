@@ -12,6 +12,7 @@ pub mod standard {
     pub const SCREW: Color = Color::hex(0xB7AC93);
     pub const VU_FACE: Color = Color::hex(0xF3E7C4);
     pub const RED: Color = Color::hex(0xB4372A);
+    pub const GREEN: Color = Color::hex(0x6A8F4E);
     pub const AMBER: Color = Color::hex(0xF0A23B);
     pub const LAMP_OFF: Color = Color::hex(0x6B5A3E);
     pub const LED_OFF: Color = Color::hex(0x4A4238);

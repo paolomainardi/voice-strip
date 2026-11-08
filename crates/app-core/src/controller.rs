@@ -10,6 +10,9 @@ use dsp::stages::denoise::handoff_samples;
 /// user actions back through [`Controller`] methods.
 #[derive(Clone, Debug, PartialEq)]
 pub struct UiState {
+    pub app_version: String,
+    /// A successful update check has completed in this session.
+    pub update_checked: bool,
     pub on: bool,
     /// Others hear silence (virtual microphone and headphone monitor).
     pub muted: bool,
@@ -197,6 +200,8 @@ impl Controller {
             last_update_check: None,
             standby_since: None,
             state: UiState {
+                app_version: String::new(),
+                update_checked: false,
                 on: true,
                 muted: false,
                 ab_original: false,
@@ -281,6 +286,7 @@ impl Controller {
         crate::updates::set_enabled(dir, on).map_err(|e| e.to_string())?;
         self.state.update_check = crate::updates::enabled(dir);
         if !self.state.update_check {
+            self.state.update_checked = false;
             self.state.update_available = None;
             // A check already on its way is dropped with its answer.
             self.update_rx = None;
@@ -295,6 +301,7 @@ impl Controller {
                 Ok(Ok(v)) => {
                     if self.state.update_check {
                         self.state.update_available = v;
+                        self.state.update_checked = true;
                     }
                     self.update_rx = None;
                 }
@@ -881,5 +888,28 @@ impl Controller {
         } else if now.duration_since(since) >= MISS_WINDOW {
             self.miss_watch = Some((misses, now));
         }
+    }
+}
+
+#[cfg(test)]
+mod about_update_tests {
+    use super::*;
+
+    #[test]
+    fn only_successful_checks_report_a_result() {
+        let (handle, _processor) = engine::new_engine();
+        let mut c = Controller::new(handle);
+        c.state.update_check = true;
+        let (tx, rx) = std::sync::mpsc::channel();
+        c.update_rx = Some(rx);
+        tx.send(Err("offline".into())).unwrap();
+        c.poll_updates();
+        assert!(!c.state.update_checked);
+        let (tx, rx) = std::sync::mpsc::channel();
+        c.update_rx = Some(rx);
+        tx.send(Ok(None)).unwrap();
+        c.poll_updates();
+        assert!(c.state.update_checked);
+        assert!(c.state.update_available.is_none());
     }
 }

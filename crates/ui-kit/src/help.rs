@@ -160,6 +160,10 @@ pub fn calibrate(state: &UiState) -> String {
     }
 }
 
+pub fn about() -> String {
+    "About Voice Strip".into()
+}
+
 pub fn advanced() -> String {
     "Open the advanced view: spectrum, loudness and every processing stage.".into()
 }

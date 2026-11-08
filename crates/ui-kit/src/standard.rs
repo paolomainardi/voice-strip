@@ -45,8 +45,7 @@ const SCREWS: [(f32, f32); 4] = [
 
 const TITLE: Rect = Rect::new(30.0, 28.0, 126.2, 30.0);
 const SUBTITLE: Rect = Rect::new(30.0, 58.0, 126.2, 16.0);
-/// A newer release replaces the subtitle with a lamp and UPDATE x.y.z.
-const UPDATE_HIT: Rect = Rect::new(26.0, 54.0, 150.0, 22.0);
+const ABOUT_BUTTON: Rect = Rect::new(142.0, 58.0, 16.0, 16.0);
 /// Right edge of a footer notice: it wraps on two lines before CALIBRATE.
 const NOTICE_RIGHT: f32 = 194.0;
 const ON_BUTTON_Y: f32 = 29.0;
@@ -137,10 +136,12 @@ enum Id {
     Advanced,
     Calibrate,
     Input,
-    Update,
+    About,
 }
 
 pub struct StandardView {
+    pub about: crate::about::AboutPopup,
+    about_button: Rect,
     clicker: Clicker<Id>,
     /// Knob drag: pointer position and value at press time.
     drag: Option<(Point, u8)>,
@@ -167,6 +168,8 @@ impl Default for StandardView {
 impl StandardView {
     pub fn new() -> Self {
         Self {
+            about: crate::about::AboutPopup::default(),
+            about_button: ABOUT_BUTTON,
             clicker: Clicker::new(),
             drag: None,
             vu_in: VuBallistics::new(),
@@ -219,8 +222,8 @@ impl StandardView {
         if INPUT_PICK.contains(p) {
             return Some(Id::Input);
         }
-        if state.update_available.is_some() && UPDATE_HIT.contains(p) {
-            return Some(Id::Update);
+        if self.about_button.contains(p) {
+            return Some(Id::About);
         }
         None
     }
@@ -241,7 +244,7 @@ impl StandardView {
         Rect::new(CONTENT_RIGHT - w, ON_BUTTON_Y, w, ON_BUTTON_H)
     }
 
-    fn activate(&self, id: Id, state: &UiState, out: &mut Vec<Action>) {
+    fn activate(&mut self, id: Id, state: &UiState, out: &mut Vec<Action>) {
         match id {
             Id::On => out.push(Action::SetOn(!state.on)),
             Id::Mute => out.push(Action::SetMuted(!state.muted)),
@@ -260,7 +263,10 @@ impl StandardView {
             Id::Advanced => out.push(Action::SwitchView(ViewKind::Advanced)),
             Id::Calibrate => out.push(Action::Recalibrate),
             Id::Input => out.push(Action::ChooseInput(INPUT_PICK)),
-            Id::Update => out.push(Action::OpenUpdate),
+            Id::About => {
+                self.about.open = true;
+                self.clicker.leave();
+            }
         }
     }
 
@@ -375,7 +381,16 @@ impl View for StandardView {
         (WIDTH, HEIGHT)
     }
 
-    fn layout(&mut self, _w: f32, _h: f32, _state: &UiState, _p: &mut dyn Painter) {}
+    fn layout(&mut self, _w: f32, _h: f32, _state: &UiState, p: &mut dyn Painter) {
+        let sub = TextStyle::new(Family::Oswald, 400, 11.0, th::INK_SOFT).spacing(2.0);
+        let size = p.measure_text("VOICE PROCESSOR", &sub);
+        self.about_button = Rect::new(
+            SUBTITLE.x + size.width + 8.0,
+            SUBTITLE.y + (size.height - 16.0) / 2.0,
+            16.0,
+            16.0,
+        );
+    }
 
     fn static_key(&self) -> u64 {
         1
@@ -504,41 +519,24 @@ impl View for StandardView {
             Align::Left,
         );
 
-        // A newer release: the subtitle becomes a lamp and UPDATE x.y.z.
-        if let Some(v) = &state.update_available {
-            p.fill_rect(
-                Rect::new(
-                    SUBTITLE.x - 2.0,
-                    SUBTITLE.y - 2.0,
-                    SUBTITLE.w + 30.0,
-                    SUBTITLE.h + 4.0,
-                ),
-                th::FACEPLATE,
-            );
-            lamp(
-                p,
-                Rect::new(SUBTITLE.x, SUBTITLE.y + 4.0, 8.0, 8.0),
-                th::AMBER,
-                true,
-            );
-            let hover = self.clicker.hover == Some(Id::Update);
-            let style = TextStyle::new(
-                Family::Oswald,
-                500,
-                11.0,
-                if hover { th::LINK_HOVER } else { th::INK },
-            )
-            .spacing(2.0);
-            self.text2.clear();
-            let _ = write!(self.text2, "UPDATE {v}");
-            p.fill_text(
-                &self.text2,
-                SUBTITLE.x + 14.0,
-                SUBTITLE.y,
-                &style,
-                Align::Left,
-            );
-        }
+        let r = self.about_button;
+        let active = self.about.open || self.clicker.pressed == Some(Id::About);
+        let face = if active {
+            th::INK
+        } else if state.update_available.is_some() {
+            th::AMBER
+        } else {
+            th::BUTTON
+        };
+        p.fill_rounded_rect(r, 8.0, face);
+        p.border_rounded_rect(r, 8.0, 1.5, th::INK);
+        let question = TextStyle::new(
+            Family::Oswald,
+            600,
+            12.0,
+            if active { th::VU_FACE } else { th::INK },
+        );
+        p.text_in_rect("?", r, &question, Align::Center);
 
         // Needles.
         for (r, db) in [(VU_IN, self.in_db), (VU_OUT, self.out_db)] {
@@ -910,9 +908,14 @@ impl View for StandardView {
             );
             lamp(p, r, th::AMBER, true);
         }
+        self.about.paint(p, state);
     }
 
     fn handle(&mut self, ev: Event, state: &UiState, out: &mut Vec<Action>) {
+        if self.about.handle(ev, state, out) {
+            self.clicker.leave();
+            return;
+        }
         match ev {
             Event::PointerMove(pt) => {
                 if let Some((start, value)) = self.drag {
@@ -983,6 +986,9 @@ impl View for StandardView {
 
     fn tooltip(&self, p: Point, state: &UiState) -> Option<String> {
         use crate::help;
+        if self.about.open {
+            return None;
+        }
         if let Some(id) = self.hit(p, state) {
             return Some(match id {
                 Id::On => help::on_switch(state),
@@ -1001,7 +1007,7 @@ impl View for StandardView {
                 Id::Ab => help::ab(state),
                 Id::Advanced => help::advanced(),
                 Id::Calibrate => help::calibrate(state),
-                Id::Update => help::update(state),
+                Id::About => help::about(),
                 Id::Input => help::device_input(state),
             });
         }
@@ -1019,6 +1025,9 @@ impl View for StandardView {
     }
 
     fn cursor(&self) -> Cursor {
+        if self.about.open {
+            return self.about.cursor();
+        }
         match self.clicker.hover {
             Some(Id::Knob) => Cursor::EwResize,
             Some(_) => Cursor::Pointer,
@@ -1035,6 +1044,45 @@ mod tests {
         let mut s = crate::demo::demo_state();
         s.on = true;
         s
+    }
+
+    fn click(v: &mut StandardView, pt: Point, s: &UiState, out: &mut Vec<Action>) {
+        v.handle(Event::PointerDown(pt), s, out);
+        v.handle(Event::PointerUp(pt), s, out);
+    }
+
+    #[test]
+    fn about_button_and_dismissal_do_not_activate_other_controls() {
+        let mut v = StandardView::new();
+        let s = state();
+        let mut out = Vec::new();
+        let button = v.about_button.center();
+        let mute = v.mute_rect(&s).center();
+        assert_eq!(v.hit(button, &s), Some(Id::About));
+        assert!(!v.mute_rect(&s).contains(button));
+        assert!(!VU_IN.contains(button));
+        assert!(!VU_OUT.contains(button));
+        assert_eq!(v.tooltip(button, &s).as_deref(), Some("About Voice Strip"));
+        click(&mut v, button, &s, &mut out);
+        assert!(v.about.open);
+        click(&mut v, Point::new(160.0, 210.0), &s, &mut out);
+        assert!(v.about.open);
+        v.handle(Event::Scroll(KNOB.center(), 1.0), &s, &mut out);
+        v.handle(Event::Key(Key::Char('m')), &s, &mut out);
+        click(&mut v, mute, &s, &mut out);
+        assert!(!v.about.open);
+        assert!(out.is_empty());
+        // The next click is delivered normally.
+        click(&mut v, mute, &s, &mut out);
+        assert_eq!(out, [Action::SetMuted(true)]);
+        out.clear();
+        click(&mut v, button, &s, &mut out);
+        click(&mut v, button, &s, &mut out);
+        assert!(!v.about.open);
+        click(&mut v, button, &s, &mut out);
+        v.handle(Event::Key(Key::Escape), &s, &mut out);
+        assert!(!v.about.open);
+        assert!(out.is_empty());
     }
 
     #[test]

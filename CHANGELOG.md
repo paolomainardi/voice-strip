@@ -4,6 +4,10 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+### Added
+
+- Standard-view About popup with the app version, update status, microphone, output, latency and release and issue links.
+
 ## [0.7.5] - 2026-11-08
 
 ### Added
