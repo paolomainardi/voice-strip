@@ -4,6 +4,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-11-09
+
 ### Added
 
 - Standard-view About popup with the app version, update status, microphone, output, latency and release and issue links.
@@ -209,7 +211,8 @@ All notable changes to Voice Strip are documented here. The format follows [Keep
 - Noise removal model download that asks for consent first and checks the SHA-256.
 - Linux x86_64 release binary.
 
-[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.5...HEAD
+[Unreleased]: https://github.com/paolomainardi/voice-strip/compare/v0.7.6...HEAD
+[0.7.6]: https://github.com/paolomainardi/voice-strip/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/paolomainardi/voice-strip/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/paolomainardi/voice-strip/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/paolomainardi/voice-strip/compare/v0.7.2...v0.7.3
