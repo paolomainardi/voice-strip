@@ -61,6 +61,9 @@ pub enum Action {
     DismissModelPrompt,
     /// Open the release page of the newer version.
     OpenUpdate,
+    OpenAboutUpdate,
+    OpenReleaseNotes,
+    OpenProblem,
 }
 
 /// Cursor shape the host should show.

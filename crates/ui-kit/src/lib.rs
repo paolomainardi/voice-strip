@@ -3,6 +3,7 @@
 //! forward input as [`Event`]s and apply the returned [`Action`]s to
 //! `app_core::Controller`.
 
+pub mod about;
 pub mod advanced;
 pub mod ballistics;
 pub mod demo;

@@ -42,7 +42,7 @@ const USAGE: &str =
     "usage: voice-strip [--backend pipewire|sim] [--advanced] [--background] [--input NODE] \
 [--headphones NODE] [--preset broadcast|podcast|call|stream|narration] \
 [--noise off|light|medium|strong] [--list-devices]
-       voice-strip --screenshot standard|advanced <out.png> [--scale N] [--monitor] [--model-prompt]
+       voice-strip --screenshot standard|advanced <out.png> [--scale N] [--monitor] [--model-prompt] [--about] [--update-available VERSION]
        voice-strip --version
        voice-strip ctl <command>   (see voice-strip ctl --help)
        voice-strip driver status | install [--if-needed] | uninstall   (macOS virtual microphone)
@@ -62,6 +62,8 @@ struct Args {
     monitor: bool,
     /// Screenshot with the model download dialog open.
     model_prompt: bool,
+    about: bool,
+    update_available: Option<String>,
     /// Start without the window: processing, tray and remote control only.
     background: bool,
 }
@@ -132,6 +134,8 @@ fn parse_args() -> Args {
             }
             "--monitor" => a.monitor = true,
             "--model-prompt" => a.model_prompt = true,
+            "--about" => a.about = true,
+            "--update-available" => a.update_available = Some(it.next().unwrap_or_else(|| usage())),
             "--background" => a.background = true,
             _ => usage(),
         }
@@ -287,6 +291,19 @@ impl VoiceStrip {
                 Action::DownloadModel => self.controller.download_model(),
                 Action::DismissModelPrompt => self.controller.dismiss_model_prompt(),
                 Action::OpenUpdate => open_url(app_core::updates::RELEASES_PAGE),
+                Action::OpenAboutUpdate => {
+                    if let Some(v) = &state.update_available {
+                        open_url(&format!(
+                            "https://github.com/paolomainardi/voice-strip/releases/tag/v{v}"
+                        ));
+                    }
+                }
+                Action::OpenReleaseNotes => {
+                    open_url("https://github.com/paolomainardi/voice-strip/releases")
+                }
+                Action::OpenProblem => {
+                    open_url("https://github.com/paolomainardi/voice-strip/issues/new")
+                }
             }
         }
     }
@@ -368,7 +385,9 @@ impl VoiceStrip {
                             continue;
                         }
                         self.dispatch(Event::PointerMove(pt));
-                        if self.cursor() == Cursor::Default {
+                        if self.cursor() == Cursor::Default
+                            && !(self.active == ViewKind::Standard && self.standard.about.open)
+                        {
                             // Bare canvas: move the window (no title bar).
                             self.pressed_on_canvas = true;
                             ctx.send_viewport_cmd(ViewportCommand::StartDrag);
@@ -968,6 +987,8 @@ fn main() -> eframe::Result<()> {
             demo.neural_denoise = None;
             demo.model_prompt = Some(app_core::ModelUse::Noise(DenoiseLevel::Medium));
         }
+        demo.update_available = args.update_available.clone();
+        standard_view.about.open = args.about;
         *controller.state_mut() = demo;
         advanced_view.set_demo_spectrum();
         let st = controller.state().clone();
@@ -1030,6 +1051,8 @@ fn main() -> eframe::Result<()> {
         .headphones
         .as_deref()
         .and_then(|id| outputs.iter().position(|d| d.id == id));
+
+    controller.state_mut().app_version = env!("CARGO_PKG_VERSION").into();
 
     #[cfg(target_os = "linux")]
     let tray = if screenshot {
